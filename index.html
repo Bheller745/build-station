@@ -239,7 +239,7 @@ const HARDCODED = {
   'sku-table':          'SKUs',
   'sku-name-field':     'SKU',
   'diagram-field':      'Wiring Diagram',
-  'product-img-field':  'Product Photo'
+  'product-img-field':  'Product Image'
 };
 let cfg = { ...HARDCODED };
 
@@ -478,7 +478,6 @@ async function loadBuildsWithSku(records) {
     if (skuIds?.length) {
       try {
         const sr = await atGetRec(cfg['sku-table'], skuIds[0]);
-        console.log('SKU fields:', JSON.stringify(sr.fields));
         console.log('Product Photo raw:', JSON.stringify(sr.fields[cfg['product-img-field']]));
         sku = {
           name: sr.fields[cfg['sku-name-field']]||'Unknown SKU',
