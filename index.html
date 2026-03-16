@@ -983,7 +983,7 @@ async function runReport() {
   try {
     // Find employee by name or badge number
     const empData = await atGet(cfg['emp-table'], {
-      filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', {${cfg['emp-id-field']}} = '${query}')`,
+      filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', LOWER({${cfg['emp-id-field']}}) = '${query.toLowerCase()}')`,
       maxRecords: 1
     });
     if (!empData.records?.length) {
