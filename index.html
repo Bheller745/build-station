@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Build Station Scanner</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
 <style>
   :root {
     --bg: #0a0c0f; --surface: #111418; --border: #252a32;
@@ -806,16 +806,19 @@ async function openCamera() {
 
   try {
     codeReader = new ZXing.BrowserMultiFormatReader();
-    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
-    // Prefer back camera
-    const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[devices.length - 1]?.deviceId;
+
+    // Get devices using standard MediaDevices API
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    // Prefer back/rear camera on mobile
+    const backCam = videoDevices.find(d => /back|rear|environment/i.test(d.label));
+    const deviceId = backCam?.deviceId || undefined;
 
     await codeReader.decodeFromVideoDevice(deviceId, 'cam-video', (result, err) => {
       if (result && camActive) {
         const val = result.getText();
         document.getElementById('cam-result').textContent = val;
         closeCamera();
-        // Feed into scan input and trigger
         document.getElementById('scan-input').value = val;
         triggerScan();
       }
