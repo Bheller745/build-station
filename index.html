@@ -1098,18 +1098,30 @@ async function runReport() {
       return 'default';
     };
 
+    // Helper to get latest Time Built date for a record
+    const getLatestDate = rec => {
+      const tb = rec.fields['Time Built'];
+      if (!tb) return null;
+      const dates = Array.isArray(tb) ? tb : [tb];
+      return new Date(dates.slice().sort().pop());
+    };
+
+    // Sort records by latest Time Built date ascending
+    const sortByDate = recs => [...recs].sort((a, b) => {
+      const da = getLatestDate(a), db = getLatestDate(b);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da - db;
+    });
+
     const rowHtml = rec => {
       const sku = getSku(rec);
       const bao = rec.fields['BAO#'] || '—';
       const qty = rec.fields['QTY'] || '—';
-      // Time Built is an array of timestamps — show the most recent
-      const timBuilt = rec.fields['Time Built'];
-      let dateStr = '—';
-      if (timBuilt) {
-        const dates = Array.isArray(timBuilt) ? timBuilt : [timBuilt];
-        const latest = dates.sort().pop();
-        dateStr = new Date(latest).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      }
+      const pay = rec.fields['Total Pay'] != null ? `$${Number(rec.fields['Total Pay']).toFixed(2)}` : '—';
+      const d = getLatestDate(rec);
+      const dateStr = d ? d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
       const status = rec.fields[cfg['build-status-field']] || '—';
       const sc = scls(status);
       return `<tr>
@@ -1118,14 +1130,23 @@ async function runReport() {
         <td style="font-family:'IBM Plex Mono',monospace;text-align:center">${x(String(qty))}</td>
         <td>${sku.difficulty ? `<span class="diff-badge ${diffClass(sku.difficulty)}">${x(sku.difficulty)}</span>` : '—'}</td>
         <td><span class="spill ${sc}" style="font-size:0.55rem">● ${x(status)}</span></td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--green)">${pay}</td>
         <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem">${dateStr}</td>
       </tr>`;
     };
 
     const tableHead = `<table class="report-table">
       <thead><tr>
-        <th>BAO#</th><th>SKU</th><th>QTY</th><th>Difficulty</th><th>Status</th><th>Date</th>
+        <th>BAO#</th><th>SKU</th><th>QTY</th><th>Difficulty</th><th>Status</th><th>Pay</th><th>Date</th>
       </tr></thead><tbody>`;
+
+    // Sort both groups by date
+    const buildingSorted = sortByDate(buildingRecs);
+    const checkSorted    = sortByDate(checkRecs);
+
+    // Total pay across all records
+    const totalPay = allRecs.reduce((sum, r) => sum + (Number(r.fields['Total Pay']) || 0), 0);
+    const totalPayStr = `$${totalPay.toFixed(2)}`;
 
     let html = `
       <div class="report-header">
@@ -1135,22 +1156,23 @@ async function runReport() {
           <div class="report-stat"><label>Building</label><span>${buildingRecs.length}</span></div>
           <div class="report-stat"><label>Check</label><span>${checkRecs.length}</span></div>
           <div class="report-stat"><label>Total</label><span>${allRecs.length}</span></div>
+          <div class="report-stat"><label>Total Pay</label><span style="font-size:1.4rem;color:var(--green)">${totalPayStr}</span></div>
         </div>
       </div>`;
 
     if (!allRecs.length) {
-      html += '<div class="report-empty">No builds found for this week.</div>';
+      html += '<div class="report-empty">No builds found for this period.</div>';
     } else {
-      if (buildingRecs.length) {
+      if (buildingSorted.length) {
         html += `<div class="report-group">
-          <div class="report-group-title">Building <span class="report-group-count">${buildingRecs.length}</span></div>
-          ${tableHead}${buildingRecs.map(rowHtml).join('')}</tbody></table>
+          <div class="report-group-title">Building <span class="report-group-count">${buildingSorted.length}</span></div>
+          ${tableHead}${buildingSorted.map(rowHtml).join('')}</tbody></table>
         </div>`;
       }
-      if (checkRecs.length) {
+      if (checkSorted.length) {
         html += `<div class="report-group">
-          <div class="report-group-title">Check <span class="report-group-count">${checkRecs.length}</span></div>
-          ${tableHead}${checkRecs.map(rowHtml).join('')}</tbody></table>
+          <div class="report-group-title">Check <span class="report-group-count">${checkSorted.length}</span></div>
+          ${tableHead}${checkSorted.map(rowHtml).join('')}</tbody></table>
         </div>`;
       }
     }
