@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build Station Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f; --surface: #111418; --border: #252a32;
+    --accent: #f5a623; --green: #2ecc71; --yellow: #f5a623;
+    --blue: #4a9eff; --red: #e74c3c; --text: #e8eaed; --muted: #6b7280;
+    --scan-glow: rgba(245,166,35,0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  /* CONFIG */
+  #config-overlay {
+    position: fixed; inset: 0; z-index: 1000; background: var(--bg);
+    display: flex; align-items: flex-start; justify-content: center;
+    overflow-y: auto; padding: 40px 0;
+  }
+  .config-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-top: 3px solid var(--accent); padding: 40px;
+    width: 520px; max-width: 95vw; margin: auto;
+  }
+  .config-box h2 { font-family: 'Bebas Neue',sans-serif; font-size: 2rem; letter-spacing: 2px; color: var(--accent); margin-bottom: 4px; }
+  .config-box > p { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+  .cfg-section { font-family: 'IBM Plex Mono',monospace; font-size: 0.63rem; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 22px 0 12px; }
+  .config-field { margin-bottom: 12px; }
+  .config-field label { display: block; font-family: 'IBM Plex Mono',monospace; font-size: 0.66rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
+  .config-field input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'IBM Plex Mono',monospace; font-size: 0.83rem; padding: 9px 12px; outline: none; transition: border-color 0.2s; }
+  .config-field input:focus { border-color: var(--accent); }
+  .cfg-hint { font-size: 0.68rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .btn-primary { width: 100%; background: var(--accent); color: #000; border: none; font-family: 'Bebas Neue',sans-serif; font-size: 1.1rem; letter-spacing: 2px; padding: 14px; cursor: pointer; margin-top: 10px; transition: opacity 0.2s; }
+  .btn-primary:hover { opacity: 0.85; }
+
+  /* HEADER */
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: 'Bebas Neue',sans-serif; font-size: 1.5rem; letter-spacing: 3px; color: var(--accent); }
+  .logo span { color: var(--muted); }
+  .hdr-right { display: flex; align-items: center; gap: 16px; }
+  .hdr-status { font-family: 'IBM Plex Mono',monospace; font-size: 0.68rem; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 5px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+  .btn-sm { background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 0.66rem; padding: 6px 11px; cursor: pointer; transition: all 0.2s; }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* SCAN BAR */
+  .scan-zone { padding: 18px 28px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .scan-label { font-family: 'IBM Plex Mono',monospace; font-size: 0.63rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+  .scan-row { display: flex; gap: 10px; }
+  #scan-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--accent); color: var(--text); font-family: 'IBM Plex Mono',monospace; font-size: 1.1rem; padding: 11px 16px; outline: none; transition: all 0.2s; letter-spacing: 2px; }
+  #scan-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--scan-glow); }
+  #scan-input::placeholder { color: var(--muted); font-size: 0.8rem; letter-spacing: 1px; }
+  .scan-go { background: var(--accent); border: none; color: #000; font-family: 'Bebas Neue',sans-serif; font-size: 1rem; letter-spacing: 2px; padding: 0 22px; cursor: pointer; transition: opacity 0.2s; }
+  .scan-go:hover { opacity: 0.85; }
+  .msg { font-family: 'IBM Plex Mono',monospace; font-size: 0.72rem; padding: 8px 13px; margin-top: 8px; }
+  .msg.err { background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.3); color: var(--red); }
+  .msg.ok  { background: rgba(46,204,113,0.08); border: 1px solid rgba(46,204,113,0.25); color: var(--green); }
+
+  /* LAYOUT */
+  .main-layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 124px); }
+
+  /* LEFT */
+  .left-panel { border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; }
+  .psec { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .ptitle { font-family: 'IBM Plex Mono',monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+
+  .emp-name { font-family: 'Bebas Neue',sans-serif; font-size: 1.85rem; letter-spacing: 2px; line-height: 1; }
+  .emp-id { font-family: 'IBM Plex Mono',monospace; font-size: 0.7rem; color: var(--accent); margin-top: 4px; }
+
+  .builds-list { display: flex; flex-direction: column; gap: 8px; }
+  .build-card { border: 1px solid var(--border); background: var(--bg); padding: 12px; cursor: pointer; transition: all 0.2s; position: relative; }
+  .build-card:hover, .build-card.active { border-color: var(--accent); background: var(--scan-glow); }
+  .build-card.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent); }
+  .bc-sku { font-family: 'IBM Plex Mono',monospace; font-size: 0.66rem; color: var(--accent); letter-spacing: 1px; margin-bottom: 3px; }
+  .bc-name { font-size: 0.83rem; font-weight: 500; margin-bottom: 7px; }
+
+  /* status pill */
+  .spill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-family: 'IBM Plex Mono',monospace; font-size: 0.58rem; letter-spacing: 1px; text-transform: uppercase; border: 1px solid; border-radius: 2px; }
+  .spill.awaiting { background:rgba(74,158,255,0.08); color:var(--blue); border-color:rgba(74,158,255,0.25); }
+  .spill.building { background:rgba(245,166,35,0.08); color:var(--yellow); border-color:rgba(245,166,35,0.25); }
+  .spill.check    { background:rgba(46,204,113,0.08); color:var(--green); border-color:rgba(46,204,113,0.25); }
+
+  /* advance button */
+  .adv-btn { display:block; width:100%; margin-top:8px; background:transparent; border:1px solid var(--border); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.63rem; letter-spacing:1px; padding:5px 8px; cursor:pointer; text-align:left; transition:all 0.2s; text-transform:uppercase; }
+  .adv-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--scan-glow); }
+  .adv-btn:disabled { opacity:0.35; cursor:not-allowed; }
+  .adv-btn.updating { color:var(--accent); border-color:var(--accent); animation:blink 0.8s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.45} }
+
+  /* history */
+  .hist-list { display:flex; flex-direction:column; max-height:220px; overflow-y:auto; }
+  .hist-item { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer; transition:opacity 0.2s; }
+  .hist-item:hover { opacity:0.65; }
+  .hist-item:last-child { border-bottom:none; }
+  .hdot { width:5px; height:5px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .hname { font-size:0.78rem; font-weight:500; flex:1; }
+  .hsub { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); margin-top:1px; }
+  .htime { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); }
+
+  /* RIGHT */
+  .right-panel { display:flex; flex-direction:column; background:var(--bg); }
+
+  /* stage bar */
+  .stage-bar { display:flex; margin-bottom:14px; }
+  .sstep { flex:1; padding:5px 8px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; letter-spacing:1px; text-transform:uppercase; background:var(--bg); border:1px solid var(--border); color:var(--muted); }
+  .sstep+.sstep { border-left:none; }
+  .sstep.past { background:rgba(107,114,128,0.07); }
+  .sstep.cur.awaiting { background:rgba(74,158,255,0.1); color:var(--blue); border-color:rgba(74,158,255,0.4); }
+  .sstep.cur.building { background:rgba(245,166,35,0.1); color:var(--yellow); border-color:rgba(245,166,35,0.4); }
+  .sstep.cur.check    { background:rgba(46,204,113,0.1); color:var(--green); border-color:rgba(46,204,113,0.4); }
+
+  .diagram-zone { flex:1; display:flex; flex-direction:column; padding:20px 24px; border-bottom:1px solid var(--border); }
+  .diagram-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .diagram-title { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:2px; }
+  .diagram-link { font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:var(--accent); background:rgba(245,166,35,0.07); border:1px solid rgba(245,166,35,0.2); padding:4px 10px; text-decoration:none; }
+  .diagram-frame { flex:1; min-height:450px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .diagram-frame img { max-width:100%; max-height:100%; object-fit:contain; display:block; }
+  .diagram-frame iframe { width:100%; height:100%; border:none; min-height:450px; }
+  .ph { text-align:center; color:var(--muted); }
+  .ph-icon { font-size:2.5rem; margin-bottom:10px; opacity:0.2; }
+  .ph p { font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:1px; }
+
+  .product-strip { padding:18px 24px; display:flex; gap:20px; align-items:flex-start; }
+  .prod-img-wrap { flex-shrink:0; width:160px; }
+  .prod-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.58rem; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
+  .prod-frame { width:160px; height:125px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .prod-frame img { width:100%; height:100%; object-fit:cover; }
+  .prod-ph { color:var(--muted); font-size:0.66rem; font-family:'IBM Plex Mono',monospace; text-align:center; padding:8px; }
+  .prod-info { flex:1; }
+  .prod-title { font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:2px; margin-bottom:10px; }
+  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .ic label { display:block; font-family:'IBM Plex Mono',monospace; font-size:0.57rem; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:2px; }
+  .ic span { font-size:0.8rem; font-weight:500; }
+
+  /* empty / loading */
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px; gap:14px; padding:40px; text-align:center; }
+  .empty-state .bi { font-size:3.5rem; opacity:0.1; }
+  .empty-state h3 { font-family:'Bebas Neue',sans-serif; font-size:1.5rem; letter-spacing:3px; color:var(--muted); }
+  .empty-state p { font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:var(--muted); max-width:280px; line-height:1.6; }
+  .scan-anim { width:60px; height:3px; background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:scanline 1.5s ease-in-out infinite; }
+  @keyframes scanline { 0%,100%{opacity:0;transform:scaleX(0.3)}50%{opacity:1;transform:scaleX(1)} }
+  .loading-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px; gap:12px; }
+  .lbar { width:200px; height:2px; background:var(--border); overflow:hidden; }
+  .lbar-i { height:100%; background:var(--accent); animation:lrun 1s ease-in-out infinite; }
+  @keyframes lrun { 0%{transform:translateX(-100%)}100%{transform:translateX(200%)} }
+  .ltxt { font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:var(--muted); letter-spacing:2px; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); }
+  @keyframes flashScan { 0%{background:rgba(245,166,35,0.2)}100%{background:transparent} }
+  .flash { animation:flashScan 0.4s ease-out; }
+</style>
+</head>
+<body>
+
+<!-- CONFIG — token only -->
+<div id="config-overlay">
+  <div class="config-box" style="width:420px">
+    <h2>Build Station</h2>
+    <p>Enter your Airtable Personal Access Token to connect. Saved locally in your browser.</p>
+    <div class="config-field">
+      <label>Personal Access Token</label>
+      <input type="password" id="cfg-token" placeholder="patXXXXXXXXXXXXXX" autocomplete="off">
+      <div class="cfg-hint">Airtable → Account → Developer Hub → Personal access tokens</div>
+    </div>
+    <button class="btn-primary" onclick="saveConfig()">CONNECT &amp; LAUNCH</button>
+    <div id="cfg-error" class="msg err" style="display:none"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header>
+    <div class="logo">BUILD<span> // </span>STATION</div>
+    <div class="hdr-right">
+      <div class="hdr-status"><span class="dot"></span>CONNECTED &nbsp;|&nbsp; <span id="hdr-base" style="color:var(--accent)"></span></div>
+      <button class="btn-sm" onclick="showConfig()">⚙ RECONFIGURE</button>
+    </div>
+  </header>
+
+  <div class="scan-zone">
+    <div class="scan-label">▶ Scan Employee Badge</div>
+    <div class="scan-row">
+      <input type="text" id="scan-input" placeholder="Focus here, then scan badge..." autocomplete="off" autofocus>
+      <button class="scan-go" onclick="triggerScan()">SCAN</button>
+    </div>
+    <div id="msg-err" class="msg err" style="display:none"></div>
+    <div id="msg-ok"  class="msg ok"  style="display:none"></div>
+  </div>
+
+  <div class="main-layout">
+    <div class="left-panel">
+      <div class="psec">
+        <div class="ptitle">Employee</div>
+        <div id="emp-info"><span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;">Awaiting scan...</span></div>
+      </div>
+      <div class="psec" style="flex:1">
+        <div class="ptitle">Active Builds <span id="build-count" style="color:var(--accent)"></span></div>
+        <div id="builds-list"><span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;">No builds loaded</span></div>
+      </div>
+      <div class="psec">
+        <div class="ptitle">Scan History</div>
+        <div id="hist-list" class="hist-list"><span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">No scans yet</span></div>
+      </div>
+    </div>
+
+    <div class="right-panel" id="right-panel">
+      <div class="empty-state">
+        <div class="bi">⬡</div>
+        <h3>Ready to Scan</h3>
+        <p>Scan an employee badge to load their active builds and view diagrams.</p>
+        <div class="scan-anim"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+const HARDCODED = {
+  'base':               'appMnqBvSSSSffc1k',
+  'emp-table':          'Employee',
+  'emp-id-field':       'Badge Number',
+  'emp-name-field':     'Employee',
+  'builds-table':       'BAO',
+  'build-status-field': 'Status',
+  'status-awaiting':    'Awaiting Build',
+  'status-building':    'Building',
+  'status-check':       'Check',
+  'start-build-field':  'Start Build',
+  'built-by-field':     'Built By',
+  'build-sku-field':    'SKU',
+  'sku-table':          'SKUs',
+  'sku-name-field':     'SKU',
+  'diagram-field':      'Wiring Diagram',
+  'product-img-field':  'Product Photo'
+};
+let cfg = { ...HARDCODED };
+
+function saveConfig() {
+  const token = document.getElementById('cfg-token').value.trim();
+  if (!token) { showCfgErr('Please enter your Airtable Personal Access Token.'); return; }
+  cfg = { ...HARDCODED, token };
+  localStorage.setItem('bs_token', token);
+  document.getElementById('cfg-error').style.display = 'none';
+  launchApp();
+}
+function loadConfig() {
+  const token = localStorage.getItem('bs_token');
+  if (!token) return false;
+  cfg = { ...HARDCODED, token };
+  document.getElementById('cfg-token').value = token;
+  return true;
+}
+function showCfgErr(m) { const e = document.getElementById('cfg-error'); e.style.display='block'; e.textContent=m; }
+function showConfig() { document.getElementById('config-overlay').style.display='flex'; document.getElementById('app').style.display='none'; }
+function launchApp() {
+  document.getElementById('config-overlay').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('hdr-base').textContent = cfg['base'];
+  setTimeout(() => document.getElementById('scan-input').focus(), 100);
+}
+
+// ── AIRTABLE (via local proxy) ───────────────────────────
+// All requests go to /api/airtable/:base/:table[/:recordId]
+// The proxy forwards them to Airtable with your token server-side.
+
+const PROXY = '/api/airtable';
+const hdrs = () => ({ 'x-airtable-token': cfg['token'], 'Content-Type': 'application/json' });
+
+async function atGet(table, params={}) {
+  const url = new URL(`${location.origin}${PROXY}/${cfg['base']}/${encodeURIComponent(table)}`);
+  for (const [k,v] of Object.entries(params)) url.searchParams.append(k,v);
+  const r = await fetch(url, { headers: hdrs() });
+  if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message||`HTTP ${r.status}`); }
+  return r.json();
+}
+async function atGetRec(table, id) {
+  const r = await fetch(`${location.origin}${PROXY}/${cfg['base']}/${encodeURIComponent(table)}/${id}`, { headers: hdrs() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+async function atPatch(table, id, fields) {
+  const r = await fetch(`${location.origin}${PROXY}/${cfg['base']}/${encodeURIComponent(table)}/${id}`, {
+    method: 'PATCH',
+    headers: hdrs(),
+    body: JSON.stringify({ fields })
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message||`HTTP ${r.status}`); }
+  return r.json();
+}
+
+// ── STATE ───────────────────────────────────────────────
+let employee = null;   // { id, recordId, name }
+let builds = [];       // [{ record, sku, status }]
+let selIdx = 0;
+let history = [];
+
+// ── STATUS HELPERS ──────────────────────────────────────
+function scls(status) {
+  const s = (status||'').toLowerCase();
+  if (s.includes('await')) return 'awaiting';
+  if (s.includes('build')) return 'building';
+  if (s.includes('check')) return 'check';
+  return 'awaiting';
+}
+function nextStatus(current) {
+  const s = (current||'').toLowerCase();
+  if (s.includes('await')) return cfg['status-building'];
+  if (s.includes('build')) return cfg['status-check'];
+  return null;
+}
+
+// ── SCAN ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (loadConfig()) launchApp();
+  document.getElementById('scan-input').addEventListener('keydown', e => { if (e.key==='Enter') triggerScan(); });
+});
+
+function triggerScan() {
+  const v = document.getElementById('scan-input').value.trim();
+  if (!v) return;
+  document.getElementById('scan-input').value = '';
+  processBadge(v);
+}
+
+async function processBadge(badgeId) {
+  clearMsgs();
+  setRight('loading', 'Looking up employee...');
+  const inp = document.getElementById('scan-input');
+  inp.classList.add('flash'); setTimeout(()=>inp.classList.remove('flash'), 400);
+
+  try {
+    // 1. Employee lookup
+    const ed = await atGet(cfg['emp-table'], {
+      filterByFormula: `{${cfg['emp-id-field']}} = '${badgeId}'`,
+      maxRecords: 1
+    });
+    if (!ed.records?.length) { showErr(`No employee found with ID: ${badgeId}`); setRight('empty'); return; }
+    const er = ed.records[0];
+    employee = { id: badgeId, recordId: er.id, name: er.fields[cfg['emp-name-field']]||'Unknown' };
+    renderEmp();
+    addHistory(employee);
+
+    // 2. Builds with status = Building where Start Build links to this employee
+    setRight('loading', 'Loading active builds...');
+    const filter = `AND(FIND("${er.id}", ARRAYJOIN({${cfg['start-build-field']}}, ",")), {${cfg['build-status-field']}} = "${cfg['status-building']}")`;
+    const bd = await atGet(cfg['builds-table'], { filterByFormula: filter });
+
+    if (!bd.records?.length) {
+      builds = []; renderBuilds(); setRight('no-builds'); return;
+    }
+
+    // 3. Fetch linked SKUs
+    builds = await Promise.all(bd.records.map(async rec => {
+      const skuIds = rec.fields[cfg['build-sku-field']];
+      let sku = null;
+      if (skuIds?.length) {
+        try {
+          const sr = await atGetRec(cfg['sku-table'], skuIds[0]);
+          sku = {
+            name: sr.fields[cfg['sku-name-field']]||'Unknown SKU',
+            diagram: sr.fields[cfg['diagram-field']]?.[0]||null,
+            productImg: sr.fields[cfg['product-img-field']]?.[0]||null
+          };
+        } catch(e) { console.warn('SKU fetch failed', e); }
+      }
+      return { record: rec, sku, status: rec.fields[cfg['build-status-field']]||cfg['status-building'] };
+    }));
+
+    selIdx = 0;
+    document.getElementById('build-count').textContent = `(${builds.length})`;
+    renderBuilds(); renderRight(0);
+
+  } catch(err) {
+    console.error(err); showErr('Airtable error: ' + err.message); setRight('empty');
+  }
+}
+
+// ── ADVANCE STATUS ──────────────────────────────────────
+async function advanceBuild(idx) {
+  const b = builds[idx];
+  if (!b) return;
+  const newStatus = nextStatus(b.status);
+  if (!newStatus) return;
+
+  const btn = document.getElementById(`adv-${idx}`);
+  if (btn) { btn.disabled=true; btn.classList.add('updating'); btn.textContent='UPDATING...'; }
+
+  try {
+    const fields = { [cfg['build-status-field']]: newStatus };
+
+    // Determine which tracking field to update
+    const ns = newStatus.toLowerCase();
+    if (ns.includes('build')) {
+      // → Building: set Start Build to this employee
+      fields[cfg['start-build-field']] = [employee.recordId];
+    } else if (ns.includes('check')) {
+      // → Check: set Built By to this employee
+      fields[cfg['built-by-field']] = [employee.recordId];
+    }
+
+    await atPatch(cfg['builds-table'], b.record.id, fields);
+
+    // Update local state
+    builds[idx].status = newStatus;
+    builds[idx].record.fields[cfg['build-status-field']] = newStatus;
+
+    const isFinal = !nextStatus(newStatus);
+    if (isFinal) {
+      showOk(`✓ Advanced to "${newStatus}" — build removed from active list.`);
+      setTimeout(() => {
+        builds.splice(idx, 1);
+        selIdx = 0;
+        document.getElementById('build-count').textContent = builds.length ? `(${builds.length})` : '';
+        renderBuilds();
+        builds.length ? renderRight(0) : setRight('no-builds');
+      }, 1600);
+    } else {
+      showOk(`✓ Status updated to "${newStatus}".`);
+      renderBuilds(); renderRight(idx);
+    }
+  } catch(err) {
+    console.error(err); showErr('Update failed: ' + err.message);
+    if (btn) { btn.disabled=false; btn.classList.remove('updating'); btn.textContent=`→ ADVANCE TO: ${nextStatus(b.status)||''}`.toUpperCase(); }
+  }
+}
+
+// ── RENDER ──────────────────────────────────────────────
+function renderEmp() {
+  document.getElementById('emp-info').innerHTML =
+    `<div class="emp-name">${x(employee.name)}</div><div class="emp-id">ID: ${x(employee.id)}</div>`;
+}
+
+function renderBuilds() {
+  const c = document.getElementById('builds-list');
+  if (!builds.length) { c.innerHTML=`<span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;">No active builds found</span>`; return; }
+  c.innerHTML = builds.map((b,i) => {
+    const f = b.record.fields;
+    const skuName = b.sku?.name||'Unknown SKU';
+    const bname = f['Name']||f['Build Name']||f['Job']||f['Build']||f['Title']||`Build ${i+1}`;
+    const sc = scls(b.status);
+    const nxt = nextStatus(b.status);
+    return `
+      <div class="build-card ${i===selIdx?'active':''}" onclick="selectBuild(${i})">
+        <div class="bc-sku">${x(skuName)}</div>
+        <div class="bc-name">${x(String(bname))}</div>
+        <span class="spill ${sc}">● ${x(b.status)}</span>
+        ${nxt
+          ? `<button class="adv-btn" id="adv-${i}" onclick="event.stopPropagation();advanceBuild(${i})">→ ADVANCE TO: ${x(nxt.toUpperCase())}</button>`
+          : `<div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--muted);margin-top:6px;">Final stage</div>`
+        }
+      </div>`;
+  }).join('');
+}
+
+function selectBuild(idx) { selIdx=idx; renderBuilds(); renderRight(idx); }
+
+function renderRight(idx) {
+  const b = builds[idx];
+  if (!b) { setRight('empty'); return; }
+  const sku = b.sku;
+  const skuName = sku?.name||'Unknown SKU';
+  const diag = sku?.diagram;
+  const prodImg = sku?.productImg;
+  const sc = scls(b.status);
+  const f = b.record.fields;
+  const bname = f['Name']||f['Build Name']||f['Job']||f['Build']||f['Title']||'Build';
+
+  // Stage progress bar
+  const stages = [cfg['status-awaiting'], cfg['status-building'], cfg['status-check']];
+  const curI = stages.findIndex(s => s.toLowerCase() === b.status.toLowerCase());
+  const stageBar = stages.map((s,i) => {
+    let cls = i < curI ? 'past' : (i===curI ? `cur ${sc}` : '');
+    return `<div class="sstep ${cls}">${x(s)}</div>`;
+  }).join('');
+
+  // Diagram
+  let diagHtml;
+  if (diag) {
+    const isPdf = (diag.type||diag.filename||'').toLowerCase().includes('pdf');
+    diagHtml = isPdf
+      ? `<iframe src="${diag.url}" title="Build Diagram"></iframe>`
+      : `<img src="${diag.url}" alt="Build Diagram">`;
+  } else {
+    diagHtml = `<div class="ph"><div class="ph-icon">📐</div><p>NO DIAGRAM ATTACHED</p></div>`;
+  }
+
+  // Product image
+  const prodHtml = prodImg
+    ? `<img src="${prodImg.url}" alt="Completed Product">`
+    : `<div class="prod-ph">No image</div>`;
+
+  // Tracking field display
+  const startBuild = Array.isArray(f[cfg['start-build-field']]) && f[cfg['start-build-field']].length ? '✓ Set' : '—';
+  const builtBy    = Array.isArray(f[cfg['built-by-field']])    && f[cfg['built-by-field']].length    ? '✓ Set' : '—';
+
+  document.getElementById('right-panel').innerHTML = `
+    <div class="diagram-zone">
+      <div class="stage-bar">${stageBar}</div>
+      <div class="diagram-header">
+        <div class="diagram-title">${x(skuName)} — DIAGRAM</div>
+        ${diag ? `<a href="${diag.url}" target="_blank" class="diagram-link">↗ OPEN FULL</a>` : '<span class="diagram-link" style="opacity:0.35">NO FILE</span>'}
+      </div>
+      <div class="diagram-frame">${diagHtml}</div>
+    </div>
+    <div class="product-strip">
+      <div class="prod-img-wrap">
+        <div class="prod-lbl">Completed Product</div>
+        <div class="prod-frame">${prodHtml}</div>
+      </div>
+      <div class="prod-info">
+        <div class="prod-title">${x(String(bname))}</div>
+        <div class="info-grid">
+          <div class="ic"><label>SKU</label><span>${x(skuName)}</span></div>
+          <div class="ic"><label>Status</label><span class="spill ${sc}" style="font-size:0.57rem">● ${x(b.status)}</span></div>
+          <div class="ic"><label>Scanned By</label><span>${x(employee?.name||'—')}</span></div>
+          <div class="ic"><label>Build Ref</label><span>${x(b.record.id.slice(-6).toUpperCase())}</span></div>
+          <div class="ic"><label>Start Build</label><span style="color:${startBuild==='✓ Set'?'var(--green)':'var(--muted)'}">${startBuild}</span></div>
+          <div class="ic"><label>Built By</label><span style="color:${builtBy==='✓ Set'?'var(--green)':'var(--muted)'}">${builtBy}</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function setRight(state, msg='') {
+  const p = document.getElementById('right-panel');
+  if (state==='loading') {
+    p.innerHTML=`<div class="loading-state"><div class="lbar"><div class="lbar-i"></div></div><div class="ltxt">${x(msg)||'LOADING...'}</div></div>`;
+  } else if (state==='no-builds') {
+    p.innerHTML=`<div class="empty-state"><div class="bi">✓</div><h3>${x(employee?.name||'')}</h3><p>No active "Building" builds found for this employee.</p></div>`;
+  } else {
+    p.innerHTML=`<div class="empty-state"><div class="bi">⬡</div><h3>Ready to Scan</h3><p>Scan an employee badge to load their active builds and view diagrams.</p><div class="scan-anim"></div></div>`;
+  }
+}
+
+// ── HISTORY ─────────────────────────────────────────────
+function addHistory(emp) {
+  history = history.filter(h=>h.id!==emp.id);
+  history.unshift({...emp, time: new Date()});
+  if (history.length>20) history=history.slice(0,20);
+  renderHistory();
+}
+function renderHistory() {
+  const c = document.getElementById('hist-list');
+  if (!history.length) { c.innerHTML=`<span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">No scans yet</span>`; return; }
+  c.innerHTML = history.map(h=>`
+    <div class="hist-item" onclick="rescan('${x(h.id)}')">
+      <div class="hdot"></div>
+      <div style="flex:1"><div class="hname">${x(h.name)}</div><div class="hsub">${x(h.id)}</div></div>
+      <div class="htime">${fmt(h.time)}</div>
+    </div>`).join('');
+}
+function rescan(id) { document.getElementById('scan-input').value=id; triggerScan(); }
+
+// ── UTILS ────────────────────────────────────────────────
+function clearMsgs() { ['msg-err','msg-ok'].forEach(id=>document.getElementById(id).style.display='none'); }
+function showErr(m) { const e=document.getElementById('msg-err'); e.style.display='block'; e.textContent=m; }
+function showOk(m)  { const e=document.getElementById('msg-ok');  e.style.display='block'; e.textContent=m; setTimeout(()=>e.style.display='none',4000); }
+function fmt(d) { return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+function x(s) { if(s==null)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
