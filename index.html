@@ -381,13 +381,22 @@ async function processBadge(badgeId) {
     const bd = await atGet(cfg['builds-table'], {
       filterByFormula: `{${cfg['build-status-field']}} = "${cfg['status-building']}"`
     });
-    // Linked record fields return array of display names — match by name
+    console.log('DEBUG all building BAOs:', bd.records?.length);
+    if (bd.records?.length) {
+      console.log('DEBUG first record Start Build field:', JSON.stringify(bd.records[0].fields[cfg['start-build-field']]));
+      console.log('DEBUG employee recordId:', er.id, 'empName:', empName);
+    }
+    // Match by record ID or display name — Airtable can return either
     bd.records = (bd.records || []).filter(rec => {
       const sb = rec.fields[cfg['start-build-field']];
       if (!sb) return false;
-      if (Array.isArray(sb)) return sb.some(v => String(v).trim().toLowerCase() === empName.trim().toLowerCase());
-      return String(sb).trim().toLowerCase() === empName.trim().toLowerCase();
+      const vals = Array.isArray(sb) ? sb : [sb];
+      return vals.some(v => 
+        String(v).trim().toLowerCase() === empName.trim().toLowerCase() ||
+        String(v).trim() === er.id
+      );
     });
+    console.log('DEBUG after filter:', bd.records?.length);
 
     builds = await loadBuildsWithSku(bd.records || []);
     selIdx = 0;
