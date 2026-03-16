@@ -960,22 +960,34 @@ async function runReport() {
     const monday = new Date(now); monday.setDate(now.getDate() + diffToMon); monday.setHours(0,0,0,0);
     const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
 
-    const fmt = d => d.toISOString();
     const weekLabel = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + sunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 
-    // Fetch Building BAOs for this employee (Start Build = them, this week)
-    // Fetch Check BAOs for this employee (Built By = them, this week)
-    // We fetch all BAOs modified this week and filter client-side by name
-    const [buildingData, checkData] = await Promise.all([
-      atGet(cfg['builds-table'], {
-        filterByFormula: `AND({${cfg['build-status-field']}} = "${cfg['status-building']}", IS_AFTER({Last Modified}, '${fmt(monday)}'))`,
-        fields: ['BAO#', cfg['build-status-field'], cfg['start-build-field'], cfg['built-by-field'], cfg['build-sku-field'], 'Last Modified']
-      }),
-      atGet(cfg['builds-table'], {
-        filterByFormula: `AND({${cfg['build-status-field']}} = "${cfg['status-check']}", IS_AFTER({Last Modified}, '${fmt(monday)}'))`,
-        fields: ['BAO#', cfg['build-status-field'], cfg['start-build-field'], cfg['built-by-field'], cfg['build-sku-field'], 'Last Modified']
-      })
+    // Use YYYY-MM-DD format for Airtable date comparisons
+    const fmtDate = d => d.toISOString().split('T')[0];
+    const mondayStr = fmtDate(monday);
+
+    // Fetch all Building and Check BAOs modified this week — filter by employee client-side
+    const fetchWeek = async (status) => {
+      let allRecords = [];
+      let offset = null;
+      do {
+        const params = {
+          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", IS_AFTER(LAST_MODIFIED_TIME(), '${mondayStr}'))`
+        };
+        if (offset) params.offset = offset;
+        const data = await atGet(cfg['builds-table'], params);
+        allRecords = allRecords.concat(data.records || []);
+        offset = data.offset || null;
+      } while (offset);
+      return allRecords;
+    };
+
+    const [buildingRecs_all, checkRecs_all] = await Promise.all([
+      fetchWeek(cfg['status-building']),
+      fetchWeek(cfg['status-check'])
     ]);
+    const buildingData = { records: buildingRecs_all };
+    const checkData = { records: checkRecs_all };
 
     // Filter client-side by employee name in Start Build or Built By
     const matchName = v => String(v||'').trim().toLowerCase() === empName.trim().toLowerCase();
