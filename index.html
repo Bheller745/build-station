@@ -65,7 +65,7 @@
   .main-layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 124px); }
 
   /* LEFT */
-  .left-panel { border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; }
+  .left-panel { border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; height: 100%; }
   .psec { padding: 16px 18px; border-bottom: 1px solid var(--border); }
   .ptitle { font-family: 'IBM Plex Mono',monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
 
@@ -103,7 +103,7 @@
   .htime { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); }
 
   /* RIGHT */
-  .right-panel { display:flex; flex-direction:column; background:var(--bg); }
+  .right-panel { display:flex; flex-direction:column; background:var(--bg); height:100%; overflow:hidden; }
 
   /* stage bar */
   .stage-bar { display:flex; margin-bottom:14px; }
@@ -114,21 +114,21 @@
   .sstep.cur.building { background:rgba(245,166,35,0.1); color:var(--yellow); border-color:rgba(245,166,35,0.4); }
   .sstep.cur.check    { background:rgba(46,204,113,0.1); color:var(--green); border-color:rgba(46,204,113,0.4); }
 
-  .diagram-zone { flex:1; display:flex; flex-direction:column; padding:20px 24px; border-bottom:1px solid var(--border); }
+  .diagram-zone { flex:1; display:flex; flex-direction:column; padding:16px 24px; border-bottom:1px solid var(--border); min-height:0; }
   .diagram-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
   .diagram-title { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:2px; }
   .diagram-link { font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:var(--accent); background:rgba(245,166,35,0.07); border:1px solid rgba(245,166,35,0.2); padding:4px 10px; text-decoration:none; }
-  .diagram-frame { flex:1; min-height:450px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .diagram-frame { flex:1; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; min-height:0; }
   .diagram-frame img { max-width:100%; max-height:100%; object-fit:contain; display:block; }
-  .diagram-frame iframe { width:100%; height:100%; border:none; min-height:450px; }
+  .diagram-frame iframe { width:100%; height:100%; border:none; }
   .ph { text-align:center; color:var(--muted); }
   .ph-icon { font-size:2.5rem; margin-bottom:10px; opacity:0.2; }
   .ph p { font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:1px; }
 
-  .product-strip { padding:18px 24px; display:flex; gap:20px; align-items:flex-start; }
-  .prod-img-wrap { flex-shrink:0; width:160px; }
+  .product-strip { padding:12px 24px; display:flex; gap:20px; align-items:flex-start; flex-shrink:0; }
+  .prod-img-wrap { flex-shrink:0; width:200px; }
   .prod-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.58rem; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
-  .prod-frame { width:160px; height:125px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .prod-frame { width:200px; height:160px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
   .prod-frame img { width:100%; height:100%; object-fit:cover; }
   .prod-ph { color:var(--muted); font-size:0.66rem; font-family:'IBM Plex Mono',monospace; text-align:center; padding:8px; }
   .prod-info { flex:1; }
@@ -377,8 +377,17 @@ async function processBadge(badgeId) {
     // Use employee name for linked field lookup — FIND on record ID is unreliable
     setRight('loading', 'Loading active builds...');
     const empName = er.fields[cfg['emp-name-field']] || '';
-    const filter = `AND(FIND("${empName}", ARRAYJOIN({${cfg['start-build-field']}}, ",")), {${cfg['build-status-field']}} = "${cfg['status-building']}")`;
-    const bd = await atGet(cfg['builds-table'], { filterByFormula: filter });
+    // Fetch all Building BAOs, then filter client-side by Start Build field
+    const bd = await atGet(cfg['builds-table'], {
+      filterByFormula: `{${cfg['build-status-field']}} = "${cfg['status-building']}"`
+    });
+    // Linked record fields return array of display names — match by name
+    bd.records = (bd.records || []).filter(rec => {
+      const sb = rec.fields[cfg['start-build-field']];
+      if (!sb) return false;
+      if (Array.isArray(sb)) return sb.some(v => String(v).trim().toLowerCase() === empName.trim().toLowerCase());
+      return String(sb).trim().toLowerCase() === empName.trim().toLowerCase();
+    });
 
     builds = await loadBuildsWithSku(bd.records || []);
     selIdx = 0;
@@ -542,13 +551,13 @@ function renderBuilds() {
   c.innerHTML = builds.map((b,i) => {
     const f = b.record.fields;
     const skuName = b.sku?.name||'Unknown SKU';
-    const bname = f['Name']||f['Build Name']||f['Job']||f['Build']||f['Title']||`Build ${i+1}`;
+    const baoNum = f['BAO#'] || '—';
     const sc = scls(b.status);
     const nxt = nextStatus(b.status);
     return `
       <div class="build-card ${i===selIdx?'active':''}" onclick="selectBuild(${i})">
         <div class="bc-sku">${x(skuName)}</div>
-        <div class="bc-name">${x(String(bname))}</div>
+        <div class="bc-name">BAO# ${x(String(baoNum))}</div>
         <span class="spill ${sc}">● ${x(b.status)}</span>
         ${nxt
           ? `<button class="adv-btn" id="adv-${i}" onclick="event.stopPropagation();advanceBuild(${i})">→ ADVANCE TO: ${x(nxt.toUpperCase())}</button>`
@@ -569,7 +578,7 @@ function renderRight(idx) {
   const prodImg = sku?.productImg;
   const sc = scls(b.status);
   const f = b.record.fields;
-  const bname = f['Name']||f['Build Name']||f['Job']||f['Build']||f['Title']||'Build';
+  const baoNum = f['BAO#'] || '—';
 
   // Stage progress bar
   const stages = [cfg['status-awaiting'], cfg['status-building'], cfg['status-check']];
@@ -585,15 +594,19 @@ function renderRight(idx) {
     const isPdf = (diag.type||diag.filename||'').toLowerCase().includes('pdf');
     diagHtml = isPdf
       ? `<iframe src="${diag.url}" title="Build Diagram"></iframe>`
-      : `<img src="${diag.url}" alt="Build Diagram">`;
+      : `<img src="${diag.url}" alt="Build Diagram" style="max-width:100%;max-height:100%;object-fit:contain;">`;
   } else {
     diagHtml = `<div class="ph"><div class="ph-icon">📐</div><p>NO DIAGRAM ATTACHED</p></div>`;
   }
 
-  // Product image
-  const prodHtml = prodImg
-    ? `<img src="${prodImg.url}" alt="Completed Product">`
-    : `<div class="prod-ph">No image</div>`;
+  // Product image — use thumbnail if available for better CORS compatibility
+  let prodHtml;
+  if (prodImg) {
+    const imgUrl = prodImg.thumbnails?.large?.url || prodImg.thumbnails?.full?.url || prodImg.url;
+    prodHtml = `<img src="${imgUrl}" alt="Completed Product" onerror="this.parentElement.innerHTML='<div class=prod-ph>Image unavailable</div>'">`;
+  } else {
+    prodHtml = `<div class="prod-ph">No image</div>`;
+  }
 
   // Tracking field display
   const startBuild = Array.isArray(f[cfg['start-build-field']]) && f[cfg['start-build-field']].length ? '✓ Set' : '—';
@@ -603,7 +616,10 @@ function renderRight(idx) {
     <div class="diagram-zone">
       <div class="stage-bar">${stageBar}</div>
       <div class="diagram-header">
-        <div class="diagram-title">${x(skuName)} — DIAGRAM</div>
+        <div>
+          <div class="diagram-title">${x(skuName)}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:var(--accent);margin-top:2px;">BAO# ${x(String(baoNum))}</div>
+        </div>
         ${diag ? `<a href="${diag.url}" target="_blank" class="diagram-link">↗ OPEN FULL</a>` : '<span class="diagram-link" style="opacity:0.35">NO FILE</span>'}
       </div>
       <div class="diagram-frame">${diagHtml}</div>
@@ -614,12 +630,12 @@ function renderRight(idx) {
         <div class="prod-frame">${prodHtml}</div>
       </div>
       <div class="prod-info">
-        <div class="prod-title">${x(String(bname))}</div>
+        <div class="prod-title">BAO# ${x(String(baoNum))}</div>
         <div class="info-grid">
           <div class="ic"><label>SKU</label><span>${x(skuName)}</span></div>
           <div class="ic"><label>Status</label><span class="spill ${sc}" style="font-size:0.57rem">● ${x(b.status)}</span></div>
-          <div class="ic"><label>Scanned By</label><span>${x(employee?.name||'—')}</span></div>
-          <div class="ic"><label>Build Ref</label><span>${x(b.record.id.slice(-6).toUpperCase())}</span></div>
+          <div class="ic"><label>Employee</label><span>${x(employee?.name||'—')}</span></div>
+          <div class="ic"><label>BAO#</label><span>${x(String(baoNum))}</span></div>
           <div class="ic"><label>Start Build</label><span style="color:${startBuild==='✓ Set'?'var(--green)':'var(--muted)'}">${startBuild}</span></div>
           <div class="ic"><label>Built By</label><span style="color:${builtBy==='✓ Set'?'var(--green)':'var(--muted)'}">${builtBy}</span></div>
         </div>
