@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Build Station Scanner</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   :root {
     --bg: #0a0c0f; --surface: #111418; --border: #252a32;
@@ -158,6 +159,47 @@
   @keyframes flashScan { 0%{background:rgba(245,166,35,0.2)}100%{background:transparent} }
   .flash { animation:flashScan 0.4s ease-out; }
 
+  /* Camera button */
+  .cam-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 0.9rem; padding: 0 14px; cursor: pointer; transition: all 0.2s; display: none; align-items: center; justify-content: center; }
+  .cam-btn:hover { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 768px) { .cam-btn { display: flex; } }
+
+  /* Camera overlay */
+  #cam-overlay { display: none; position: fixed; inset: 0; z-index: 500; background: #000; flex-direction: column; }
+  #cam-overlay.active { display: flex; }
+  #cam-video { width: 100%; flex: 1; object-fit: cover; }
+  .cam-viewfinder {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 260px; height: 160px;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+    border-radius: 4px;
+  }
+  .cam-viewfinder::before, .cam-viewfinder::after {
+    content: ''; position: absolute; width: 20px; height: 20px;
+    border-color: var(--accent); border-style: solid;
+  }
+  .cam-viewfinder::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; }
+  .cam-viewfinder::after  { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; }
+  .cam-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .cam-hint { font-family: 'IBM Plex Mono',monospace; font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-align: center; }
+  .cam-close { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'Bebas Neue',sans-serif; font-size: 1rem; letter-spacing: 2px; padding: 10px 32px; cursor: pointer; }
+  .cam-result { font-family: 'IBM Plex Mono',monospace; font-size: 0.8rem; color: var(--accent); }
+  .cam-scan-line {
+    position: absolute;
+    left: calc(50% - 130px); width: 260px;
+    height: 2px; background: var(--accent);
+    top: calc(50% - 80px);
+    animation: camScan 2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  @keyframes camScan {
+    0%   { top: calc(50% - 80px); opacity: 1; }
+    50%  { top: calc(50% + 80px); opacity: 1; }
+    100% { top: calc(50% - 80px); opacity: 1; }
+  }
+
+
   /* ── MOBILE ─────────────────────────────────────────── */
   @media (max-width: 768px) {
     html, body { height: 100%; overflow: hidden; }
@@ -237,6 +279,7 @@
     <div class="scan-label" id="scan-label">▶ Step 1: Scan Employee Badge</div>
     <div class="scan-row">
       <input type="text" id="scan-input" placeholder="Focus here, then scan badge..." autocomplete="off" autofocus>
+      <button class="cam-btn" onclick="openCamera()" title="Scan with camera">📷</button>
       <button class="scan-go" onclick="triggerScan()">SCAN</button>
     </div>
     <div id="msg-err" class="msg err" style="display:none"></div>
@@ -274,6 +317,18 @@
         <div class="scan-anim"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Camera overlay -->
+<div id="cam-overlay">
+  <video id="cam-video" playsinline autoplay muted></video>
+  <div class="cam-viewfinder"></div>
+  <div class="cam-scan-line"></div>
+  <div class="cam-bar">
+    <div class="cam-hint" id="cam-hint">Point camera at barcode</div>
+    <div class="cam-result" id="cam-result"></div>
+    <button class="cam-close" onclick="closeCamera()">CANCEL</button>
   </div>
 </div>
 
@@ -736,6 +791,50 @@ function renderHistory() {
 }
 function rescan(id) { document.getElementById('scan-input').value=id; triggerScan(); }
 
+
+
+// ── CAMERA SCANNER ───────────────────────────────────────
+let codeReader = null;
+let camActive = false;
+
+async function openCamera() {
+  const overlay = document.getElementById('cam-overlay');
+  overlay.classList.add('active');
+  camActive = true;
+  document.getElementById('cam-hint').textContent = 'Point camera at barcode';
+  document.getElementById('cam-result').textContent = '';
+
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    // Prefer back camera
+    const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[devices.length - 1]?.deviceId;
+
+    await codeReader.decodeFromVideoDevice(deviceId, 'cam-video', (result, err) => {
+      if (result && camActive) {
+        const val = result.getText();
+        document.getElementById('cam-result').textContent = val;
+        closeCamera();
+        // Feed into scan input and trigger
+        document.getElementById('scan-input').value = val;
+        triggerScan();
+      }
+    });
+  } catch(err) {
+    document.getElementById('cam-hint').textContent = 'Camera error: ' + err.message;
+    console.error('Camera error:', err);
+  }
+}
+
+function closeCamera() {
+  camActive = false;
+  if (codeReader) {
+    codeReader.reset();
+    codeReader = null;
+  }
+  document.getElementById('cam-overlay').classList.remove('active');
+  setTimeout(() => document.getElementById('scan-input').focus(), 100);
+}
 
 // ── MOBILE TABS ──────────────────────────────────────────
 function mobTab(tab) {
