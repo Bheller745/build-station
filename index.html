@@ -157,6 +157,67 @@
   ::-webkit-scrollbar-thumb { background:var(--border); }
   @keyframes flashScan { 0%{background:rgba(245,166,35,0.2)}100%{background:transparent} }
   .flash { animation:flashScan 0.4s ease-out; }
+
+  /* ── MOBILE ─────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    html, body { height: 100%; overflow: hidden; }
+
+    /* Header — compact */
+    header { padding: 8px 14px; }
+    .logo { font-size: 1.1rem; letter-spacing: 2px; }
+    .hdr-status { font-size: 0.6rem; }
+    #hdr-base { display: none; }
+
+    /* Scan bar — compact */
+    .scan-zone { padding: 8px 12px; }
+    .scan-label { font-size: 0.58rem; margin-bottom: 6px; }
+    #scan-input { font-size: 0.95rem; padding: 10px 12px; }
+    .scan-go { padding: 0 14px; font-size: 0.85rem; }
+    .msg { font-size: 0.65rem; padding: 6px 10px; }
+
+    /* Main layout — single column with tabs */
+    .main-layout { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .left-panel { display: none; }
+    .left-panel.mob-active { display: flex; }
+    .right-panel { display: none; }
+    .right-panel.mob-active { display: flex; }
+
+    /* Tab bar */
+    .mob-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .mob-tab { flex: 1; padding: 9px 6px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .mob-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Left panel mobile */
+    .left-panel { overflow-y: auto; }
+    .psec { padding: 12px 14px; }
+    .emp-name { font-size: 1.5rem; }
+    .hist-list { max-height: 150px; }
+
+    /* Right panel mobile — scrollable */
+    .right-panel { overflow-y: auto; overflow-x: hidden; }
+    .diagram-zone { flex: none; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .diagram-frame { min-height: 260px; height: 50vw; max-height: 340px; }
+    .diagram-title { font-size: 1rem; }
+    .stage-bar { margin-bottom: 8px; }
+    .sstep { font-size: 0.52rem; padding: 4px 4px; }
+
+    .product-strip { flex-direction: column; padding: 10px 14px; gap: 12px; }
+    .prod-img-wrap { width: 100%; }
+    .prod-frame { width: 100%; height: 180px; }
+    .info-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ic span { font-size: 0.75rem; }
+
+    /* Advance button bigger for touch */
+    .adv-btn { padding: 10px 8px; font-size: 0.7rem; }
+  }
+
+  /* Desktop — hide tab bar */
+  @media (min-width: 769px) {
+    .mob-tabs { display: none; }
+    .left-panel { display: flex !important; }
+    .right-panel { display: flex !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -182,8 +243,15 @@
     <div id="msg-ok"  class="msg ok"  style="display:none"></div>
   </div>
 
+  <!-- Mobile tab bar -->
+  <div class="mob-tabs" id="mob-tabs">
+    <div class="mob-tab active" id="tab-diagram" onclick="mobTab('diagram')">📐 Diagram</div>
+    <div class="mob-tab" id="tab-builds" onclick="mobTab('builds')">🔧 Builds</div>
+    <div class="mob-tab" id="tab-history" onclick="mobTab('history')">🕐 History</div>
+  </div>
+
   <div class="main-layout">
-    <div class="left-panel">
+    <div class="left-panel" id="left-panel">
       <div class="psec">
         <div class="ptitle">Employee</div>
         <div id="emp-info"><span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;">Awaiting scan...</span></div>
@@ -198,7 +266,7 @@
       </div>
     </div>
 
-    <div class="right-panel" id="right-panel">
+    <div class="right-panel mob-active" id="right-panel">
       <div class="empty-state">
         <div class="bi">⬡</div>
         <h3>Ready to Scan</h3>
@@ -372,6 +440,7 @@ async function processBadge(badgeId) {
     renderBuilds();
     if (builds.length) {
       renderRight(0);
+      mobShowDiagram();
       showOk(`✓ Loaded ${builds.length} active build${builds.length>1?'s':''} — or scan a BAO# to claim a new one.`);
     } else {
       setRight('no-builds');
@@ -456,6 +525,7 @@ async function processBAO(baoValue) {
     document.getElementById('build-count').textContent = `(${builds.length})`;
     renderBuilds();
     renderRight(selIdx);
+    mobShowDiagram();
     showOk(`✓ BAO# ${baoValue} claimed — status set to Building.`);
 
   } catch(err) {
@@ -665,6 +735,36 @@ function renderHistory() {
     </div>`).join('');
 }
 function rescan(id) { document.getElementById('scan-input').value=id; triggerScan(); }
+
+
+// ── MOBILE TABS ──────────────────────────────────────────
+function mobTab(tab) {
+  const left = document.getElementById('left-panel');
+  const right = document.getElementById('right-panel');
+  document.querySelectorAll('.mob-tab').forEach(t => t.classList.remove('active'));
+
+  if (tab === 'diagram') {
+    left.classList.remove('mob-active');
+    right.classList.add('mob-active');
+    document.getElementById('tab-diagram').classList.add('active');
+  } else if (tab === 'builds' || tab === 'history') {
+    right.classList.remove('mob-active');
+    left.classList.add('mob-active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    // Scroll to the right section in left panel
+    if (tab === 'history') {
+      setTimeout(() => {
+        const el = document.getElementById('hist-list');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+    }
+  }
+}
+
+// After scan on mobile, switch to diagram tab
+function mobShowDiagram() {
+  if (window.innerWidth <= 768) mobTab('diagram');
+}
 
 // ── UTILS ────────────────────────────────────────────────
 function clearMsgs() { ['msg-err','msg-ok'].forEach(id=>document.getElementById(id).style.display='none'); }
