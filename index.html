@@ -13,7 +13,9 @@
     --scan-glow: rgba(245,166,35,0.15);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
   body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  #app { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
 
   /* CONFIG */
   #config-overlay {
@@ -62,10 +64,10 @@
   .msg.ok  { background: rgba(46,204,113,0.08); border: 1px solid rgba(46,204,113,0.25); color: var(--green); }
 
   /* LAYOUT */
-  .main-layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 124px); }
+  .main-layout { display: grid; grid-template-columns: 300px 1fr; flex: 1; overflow: hidden; min-height: 0; }
 
   /* LEFT */
-  .left-panel { border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; height: 100%; }
+  .left-panel { border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; min-height: 0; }
   .psec { padding: 16px 18px; border-bottom: 1px solid var(--border); }
   .ptitle { font-family: 'IBM Plex Mono',monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
 
@@ -103,7 +105,7 @@
   .htime { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); }
 
   /* RIGHT */
-  .right-panel { display:flex; flex-direction:column; background:var(--bg); overflow:hidden; height:100%; }
+  .right-panel { display:flex; flex-direction:column; background:var(--bg); overflow:hidden; min-height:0; }
 
   /* stage bar */
   .stage-bar { display:flex; margin-bottom:10px; }
@@ -138,13 +140,13 @@
   .ic span { font-size:0.8rem; font-weight:500; }
 
   /* empty / loading */
-  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px; gap:14px; padding:40px; text-align:center; }
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; gap:14px; padding:40px; text-align:center; }
   .empty-state .bi { font-size:3.5rem; opacity:0.1; }
   .empty-state h3 { font-family:'Bebas Neue',sans-serif; font-size:1.5rem; letter-spacing:3px; color:var(--muted); }
   .empty-state p { font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:var(--muted); max-width:280px; line-height:1.6; }
   .scan-anim { width:60px; height:3px; background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:scanline 1.5s ease-in-out infinite; }
   @keyframes scanline { 0%,100%{opacity:0;transform:scaleX(0.3)}50%{opacity:1;transform:scaleX(1)} }
-  .loading-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px; gap:12px; }
+  .loading-state { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; gap:12px; }
   .lbar { width:200px; height:2px; background:var(--border); overflow:hidden; }
   .lbar-i { height:100%; background:var(--accent); animation:lrun 1s ease-in-out infinite; }
   @keyframes lrun { 0%{transform:translateX(-100%)}100%{transform:translateX(200%)} }
@@ -159,28 +161,14 @@
 </head>
 <body>
 
-<!-- CONFIG — token only -->
-<div id="config-overlay">
-  <div class="config-box" style="width:420px">
-    <h2>Build Station</h2>
-    <p>Enter your Airtable Personal Access Token to connect. Saved locally in your browser.</p>
-    <div class="config-field">
-      <label>Personal Access Token</label>
-      <input type="password" id="cfg-token" placeholder="patXXXXXXXXXXXXXX" autocomplete="off">
-      <div class="cfg-hint">Airtable → Account → Developer Hub → Personal access tokens</div>
-    </div>
-    <button class="btn-primary" onclick="saveConfig()">CONNECT &amp; LAUNCH</button>
-    <div id="cfg-error" class="msg err" style="display:none"></div>
-  </div>
-</div>
+<!-- Config handled server-side via AIRTABLE_TOKEN env var -->
 
 <!-- APP -->
-<div id="app" style="display:none;height:100vh;overflow:hidden;flex-direction:column;">
+<div id="app" style="display:none">
   <header>
     <div class="logo">BUILD<span> // </span>STATION</div>
     <div class="hdr-right">
       <div class="hdr-status"><span class="dot"></span>CONNECTED &nbsp;|&nbsp; <span id="hdr-base" style="color:var(--accent)"></span></div>
-      <button class="btn-sm" onclick="showConfig()">⚙ RECONFIGURE</button>
     </div>
   </header>
 
@@ -222,8 +210,8 @@
 </div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────
-const HARDCODED = {
+// ── CONFIG — all values hardcoded, token lives in Railway env var ──
+const cfg = {
   'base':               'appMnqBvSSSSffc1k',
   'emp-table':          'Employee',
   'emp-id-field':       'Badge Number',
@@ -241,28 +229,11 @@ const HARDCODED = {
   'diagram-field':      'Wiring Diagram',
   'product-img-field':  'Product Image'
 };
-let cfg = { ...HARDCODED };
 
-function saveConfig() {
-  const token = document.getElementById('cfg-token').value.trim();
-  if (!token) { showCfgErr('Please enter your Airtable Personal Access Token.'); return; }
-  cfg = { ...HARDCODED, token };
-  localStorage.setItem('bs_token', token);
-  document.getElementById('cfg-error').style.display = 'none';
-  launchApp();
-}
-function loadConfig() {
-  const token = localStorage.getItem('bs_token');
-  if (!token) return false;
-  cfg = { ...HARDCODED, token };
-  document.getElementById('cfg-token').value = token;
-  return true;
-}
-function showCfgErr(m) { const e = document.getElementById('cfg-error'); e.style.display='block'; e.textContent=m; }
-function showConfig() { document.getElementById('config-overlay').style.display='flex'; document.getElementById('app').style.display='none'; }
 function launchApp() {
-  document.getElementById('config-overlay').style.display='none';
-  const appEl = document.getElementById('app'); appEl.style.display='flex'; appEl.style.flexDirection='column';
+  const appEl = document.getElementById('app');
+  appEl.style.display='flex'; appEl.style.flexDirection='column';
+  appEl.style.height='100vh'; appEl.style.overflow='hidden';
   document.getElementById('hdr-base').textContent = cfg['base'];
   setTimeout(() => document.getElementById('scan-input').focus(), 100);
 }
@@ -272,7 +243,7 @@ function launchApp() {
 // The proxy forwards them to Airtable with your token server-side.
 
 const PROXY = '/api/airtable';
-const hdrs = () => ({ 'x-airtable-token': cfg['token'], 'Content-Type': 'application/json' });
+const hdrs = () => ({ 'Content-Type': 'application/json' });
 
 async function atGet(table, params={}) {
   const url = new URL(`${location.origin}${PROXY}/${cfg['base']}/${encodeURIComponent(table)}`);
@@ -334,7 +305,7 @@ function setScanMode(mode) {
 
 // ── SCAN ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  if (loadConfig()) launchApp();
+  launchApp();
   document.getElementById('scan-input').addEventListener('keydown', e => { if (e.key==='Enter') triggerScan(); });
 });
 
