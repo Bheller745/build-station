@@ -558,7 +558,7 @@ async function processBadge(badgeId) {
   setRight('loading', 'Looking up employee...');
   try {
     const ed = await atGet(cfg['emp-table'], {
-      filterByFormula: `OR(LOWER({${cfg['emp-id-field']}}) = '${badgeId.toLowerCase()}', LOWER({${cfg['emp-name-field']}}) = '${badgeId.toLowerCase()}')`,
+      filterByFormula: `OR({${cfg['emp-id-field']}} = '${badgeId}', LOWER({${cfg['emp-name-field']}}) = '${badgeId.toLowerCase()}')`,
       maxRecords: 1
     });
     if (!ed.records?.length) { showErr(`No employee found with ID: ${badgeId}`); setRight('empty'); return; }
@@ -610,7 +610,7 @@ async function processBAO(baoValue) {
   // First check if this is actually a badge/name scan (re-login)
   try {
     const ed = await atGet(cfg['emp-table'], {
-      filterByFormula: `OR(LOWER({${cfg['emp-id-field']}}) = '${baoValue.toLowerCase()}', LOWER({${cfg['emp-name-field']}}) = '${baoValue.toLowerCase()}')`,
+      filterByFormula: `OR({${cfg['emp-id-field']}} = '${baoValue}', LOWER({${cfg['emp-name-field']}}) = '${baoValue.toLowerCase()}')`,
       maxRecords: 1
     });
     if (ed.records?.length) {
@@ -983,7 +983,7 @@ async function runReport() {
   try {
     // Find employee by name or badge number
     const empData = await atGet(cfg['emp-table'], {
-      filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', LOWER({${cfg['emp-id-field']}}) = '${query.toLowerCase()}')`,
+      filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', {${cfg['emp-id-field']}} = '${query}')`,
       maxRecords: 1
     });
     if (!empData.records?.length) {
