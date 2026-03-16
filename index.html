@@ -13,7 +13,7 @@
     --scan-glow: rgba(245,166,35,0.15);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 
   /* CONFIG */
   #config-overlay {
@@ -38,7 +38,7 @@
   .btn-primary:hover { opacity: 0.85; }
 
   /* HEADER */
-  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 100; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 10px 28px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; z-index: 100; }
   .logo { font-family: 'Bebas Neue',sans-serif; font-size: 1.5rem; letter-spacing: 3px; color: var(--accent); }
   .logo span { color: var(--muted); }
   .hdr-right { display: flex; align-items: center; gap: 16px; }
@@ -49,7 +49,7 @@
   .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
 
   /* SCAN BAR */
-  .scan-zone { padding: 18px 28px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .scan-zone { padding: 10px 28px 10px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
   .scan-label { font-family: 'IBM Plex Mono',monospace; font-size: 0.63rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
   .scan-row { display: flex; gap: 10px; }
   #scan-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--accent); color: var(--text); font-family: 'IBM Plex Mono',monospace; font-size: 1.1rem; padding: 11px 16px; outline: none; transition: all 0.2s; letter-spacing: 2px; }
@@ -103,10 +103,10 @@
   .htime { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); }
 
   /* RIGHT */
-  .right-panel { display:flex; flex-direction:column; background:var(--bg); height:100%; overflow:hidden; }
+  .right-panel { display:flex; flex-direction:column; background:var(--bg); overflow:hidden; height:100%; }
 
   /* stage bar */
-  .stage-bar { display:flex; margin-bottom:14px; }
+  .stage-bar { display:flex; margin-bottom:10px; }
   .sstep { flex:1; padding:5px 8px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; letter-spacing:1px; text-transform:uppercase; background:var(--bg); border:1px solid var(--border); color:var(--muted); }
   .sstep+.sstep { border-left:none; }
   .sstep.past { background:rgba(107,114,128,0.07); }
@@ -114,8 +114,8 @@
   .sstep.cur.building { background:rgba(245,166,35,0.1); color:var(--yellow); border-color:rgba(245,166,35,0.4); }
   .sstep.cur.check    { background:rgba(46,204,113,0.1); color:var(--green); border-color:rgba(46,204,113,0.4); }
 
-  .diagram-zone { flex:1; display:flex; flex-direction:column; padding:16px 24px; border-bottom:1px solid var(--border); min-height:0; }
-  .diagram-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .diagram-zone { flex:1; display:flex; flex-direction:column; padding:12px 24px; border-bottom:1px solid var(--border); min-height:0; }
+  .diagram-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
   .diagram-title { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:2px; }
   .diagram-link { font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:var(--accent); background:rgba(245,166,35,0.07); border:1px solid rgba(245,166,35,0.2); padding:4px 10px; text-decoration:none; }
   .diagram-frame { flex:1; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; min-height:0; }
@@ -125,10 +125,10 @@
   .ph-icon { font-size:2.5rem; margin-bottom:10px; opacity:0.2; }
   .ph p { font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:1px; }
 
-  .product-strip { padding:12px 24px; display:flex; gap:20px; align-items:flex-start; flex-shrink:0; }
-  .prod-img-wrap { flex-shrink:0; width:200px; }
+  .product-strip { padding:10px 24px; display:flex; gap:20px; align-items:flex-start; flex-shrink:0; }
+  .prod-img-wrap { flex-shrink:0; width:160px; }
   .prod-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.58rem; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
-  .prod-frame { width:200px; height:160px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .prod-frame { width:160px; height:120px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
   .prod-frame img { width:100%; height:100%; object-fit:cover; }
   .prod-ph { color:var(--muted); font-size:0.66rem; font-family:'IBM Plex Mono',monospace; text-align:center; padding:8px; }
   .prod-info { flex:1; }
@@ -175,7 +175,7 @@
 </div>
 
 <!-- APP -->
-<div id="app" style="display:none">
+<div id="app" style="display:none;height:100vh;overflow:hidden;flex-direction:column;">
   <header>
     <div class="logo">BUILD<span> // </span>STATION</div>
     <div class="hdr-right">
@@ -262,7 +262,7 @@ function showCfgErr(m) { const e = document.getElementById('cfg-error'); e.style
 function showConfig() { document.getElementById('config-overlay').style.display='flex'; document.getElementById('app').style.display='none'; }
 function launchApp() {
   document.getElementById('config-overlay').style.display='none';
-  document.getElementById('app').style.display='block';
+  const appEl = document.getElementById('app'); appEl.style.display='flex'; appEl.style.flexDirection='column';
   document.getElementById('hdr-base').textContent = cfg['base'];
   setTimeout(() => document.getElementById('scan-input').focus(), 100);
 }
@@ -381,9 +381,7 @@ async function processBadge(badgeId) {
     const bd = await atGet(cfg['builds-table'], {
       filterByFormula: `{${cfg['build-status-field']}} = "${cfg['status-building']}"`
     });
-    console.log('DEBUG all building BAOs:', bd.records?.length);
     if (bd.records?.length) {
-      console.log('DEBUG first record Start Build field:', JSON.stringify(bd.records[0].fields[cfg['start-build-field']]));
       console.log('DEBUG employee recordId:', er.id, 'empName:', empName);
     }
     // Match by record ID or display name — Airtable can return either
@@ -396,7 +394,6 @@ async function processBadge(badgeId) {
         String(v).trim() === er.id
       );
     });
-    console.log('DEBUG after filter:', bd.records?.length);
 
     builds = await loadBuildsWithSku(bd.records || []);
     selIdx = 0;
@@ -441,13 +438,28 @@ async function processBAO(baoValue) {
     });
 
     if (!bd.records?.length) {
-      // Maybe it's already Building — check
+      // Check if it's already Building — if so, advance to Check
       const bd2 = await atGet(cfg['builds-table'], {
         filterByFormula: `AND({BAO#} = '${baoValue}', {${cfg['build-status-field']}} = "${cfg['status-building']}")`,
         maxRecords: 1
       });
       if (bd2.records?.length) {
-        showErr(`BAO# ${baoValue} is already in Building status.`);
+        // Advance to Check — set Built By = me
+        const rec2 = bd2.records[0];
+        await atPatch(cfg['builds-table'], rec2.id, {
+          [cfg['build-status-field']]: cfg['status-check'],
+          [cfg['built-by-field']]: [employee.recordId]
+        });
+        // Remove from active builds list if present
+        const existingIdx = builds.findIndex(b => b.record.id === rec2.id);
+        if (existingIdx >= 0) {
+          builds.splice(existingIdx, 1);
+          selIdx = 0;
+          document.getElementById('build-count').textContent = builds.length ? `(${builds.length})` : '';
+          renderBuilds();
+          builds.length ? renderRight(0) : setRight('no-builds');
+        }
+        showOk(`✓ BAO# ${baoValue} advanced to Check — Built By set to ${employee.name}.`);
       } else {
         showErr(`BAO# ${baoValue} not found or not in Awaiting Build status.`);
       }
