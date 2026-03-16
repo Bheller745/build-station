@@ -987,11 +987,13 @@ async function runReport() {
       filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', {${cfg['emp-id-field']}} = '${query}')`,
       maxRecords: 1
     });
+    console.log('Report empData:', JSON.stringify(empData));
     if (!empData.records?.length) {
       body.innerHTML = `<div class="report-empty">No employee found for "${query}"</div>`; return;
     }
     const emp = empData.records[0];
     const empName = emp.fields[cfg['emp-name-field']] || query;
+    console.log('empName:', empName, 'recordId:', emp.id);
 
     // Date range based on selected span
     const fmtDate = d => d.toISOString().split('T')[0];
@@ -1047,6 +1049,8 @@ async function runReport() {
       fetchWeek(cfg['status-building']),
       fetchWeek(cfg['status-check'])
     ]);
+    console.log('Building records raw:', buildingRecs_all.length, JSON.stringify(buildingRecs_all.slice(0,2).map(r=>({bao:r.fields['BAO#'],sb:r.fields[cfg['start-build-field']],status:r.fields[cfg['build-status-field']]}))));
+    console.log('Check records raw:', checkRecs_all.length, JSON.stringify(checkRecs_all.slice(0,2).map(r=>({bao:r.fields['BAO#'],bb:r.fields[cfg['built-by-field']],status:r.fields[cfg['build-status-field']]}))));
     const buildingData = { records: buildingRecs_all };
     const checkData = { records: checkRecs_all };
 
