@@ -185,7 +185,7 @@
   </header>
 
   <div class="scan-zone">
-    <div class="scan-label">▶ Scan Employee Badge</div>
+    <div class="scan-label" id="scan-label">▶ Step 1: Scan Employee Badge</div>
     <div class="scan-row">
       <input type="text" id="scan-input" placeholder="Focus here, then scan badge..." autocomplete="off" autofocus>
       <button class="scan-go" onclick="triggerScan()">SCAN</button>
@@ -301,6 +301,8 @@ let employee = null;   // { id, recordId, name }
 let builds = [];       // [{ record, sku, status }]
 let selIdx = 0;
 let history = [];
+// Scan mode: 'badge' = waiting for employee badge, 'bao' = waiting for BAO number
+let scanMode = 'badge';
 
 // ── STATUS HELPERS ──────────────────────────────────────
 function scls(status) {
@@ -316,6 +318,19 @@ function nextStatus(current) {
   if (s.includes('build')) return cfg['status-check'];
   return null;
 }
+function setScanMode(mode) {
+  scanMode = mode;
+  const lbl = document.getElementById('scan-label');
+  const inp = document.getElementById('scan-input');
+  if (mode === 'badge') {
+    lbl.textContent = '▶ Step 1: Scan Employee Badge';
+    inp.placeholder = 'Scan employee badge...';
+  } else {
+    lbl.innerHTML = `▶ Step 2: Scan BAO# &nbsp;<span style="color:var(--accent);font-size:0.8em">— or scan badge again to refresh</span>`;
+    inp.placeholder = 'Scan BAO number...';
+  }
+  inp.focus();
+}
 
 // ── SCAN ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -327,17 +342,27 @@ function triggerScan() {
   const v = document.getElementById('scan-input').value.trim();
   if (!v) return;
   document.getElementById('scan-input').value = '';
-  processBadge(v);
+  handleScan(v);
 }
 
-async function processBadge(badgeId) {
+async function handleScan(value) {
   clearMsgs();
-  setRight('loading', 'Looking up employee...');
   const inp = document.getElementById('scan-input');
   inp.classList.add('flash'); setTimeout(()=>inp.classList.remove('flash'), 400);
 
+  if (scanMode === 'badge') {
+    // Always treat first scan as a badge
+    await processBadge(value);
+  } else {
+    // In BAO mode — check if this looks like a badge rescan
+    // Try BAO first; if not found, try as a badge
+    await processBAO(value);
+  }
+}
+
+async function processBadge(badgeId) {
+  setRight('loading', 'Looking up employee...');
   try {
-    // 1. Employee lookup
     const ed = await atGet(cfg['emp-table'], {
       filterByFormula: `{${cfg['emp-id-field']}} = '${badgeId}'`,
       maxRecords: 1
@@ -348,39 +373,109 @@ async function processBadge(badgeId) {
     renderEmp();
     addHistory(employee);
 
-    // 2. Builds with status = Building where Start Build links to this employee
+    // Load active builds (Building + Start Build = me)
     setRight('loading', 'Loading active builds...');
     const filter = `AND(FIND("${er.id}", ARRAYJOIN({${cfg['start-build-field']}}, ",")), {${cfg['build-status-field']}} = "${cfg['status-building']}")`;
     const bd = await atGet(cfg['builds-table'], { filterByFormula: filter });
 
-    if (!bd.records?.length) {
-      builds = []; renderBuilds(); setRight('no-builds'); return;
-    }
-
-    // 3. Fetch linked SKUs
-    builds = await Promise.all(bd.records.map(async rec => {
-      const skuIds = rec.fields[cfg['build-sku-field']];
-      let sku = null;
-      if (skuIds?.length) {
-        try {
-          const sr = await atGetRec(cfg['sku-table'], skuIds[0]);
-          sku = {
-            name: sr.fields[cfg['sku-name-field']]||'Unknown SKU',
-            diagram: sr.fields[cfg['diagram-field']]?.[0]||null,
-            productImg: sr.fields[cfg['product-img-field']]?.[0]||null
-          };
-        } catch(e) { console.warn('SKU fetch failed', e); }
-      }
-      return { record: rec, sku, status: rec.fields[cfg['build-status-field']]||cfg['status-building'] };
-    }));
-
+    builds = await loadBuildsWithSku(bd.records || []);
     selIdx = 0;
-    document.getElementById('build-count').textContent = `(${builds.length})`;
-    renderBuilds(); renderRight(0);
+    document.getElementById('build-count').textContent = builds.length ? `(${builds.length})` : '';
+    renderBuilds();
+    if (builds.length) {
+      renderRight(0);
+      showOk(`✓ Loaded ${builds.length} active build${builds.length>1?'s':''} — or scan a BAO# to claim a new one.`);
+    } else {
+      setRight('no-builds');
+    }
+    setScanMode('bao');
 
   } catch(err) {
     console.error(err); showErr('Airtable error: ' + err.message); setRight('empty');
   }
+}
+
+async function processBAO(baoValue) {
+  // First check if this is actually a badge scan (re-login)
+  try {
+    const ed = await atGet(cfg['emp-table'], {
+      filterByFormula: `{${cfg['emp-id-field']}} = '${baoValue}'`,
+      maxRecords: 1
+    });
+    if (ed.records?.length) {
+      // It's a badge — treat as fresh login
+      setScanMode('badge');
+      await processBadge(baoValue);
+      return;
+    }
+  } catch(e) { /* not a badge, continue */ }
+
+  if (!employee) { showErr('Please scan your badge first.'); setScanMode('badge'); return; }
+
+  setRight('loading', 'Looking up BAO#...');
+  try {
+    // Find BAO by BAO# field, must be Awaiting Build
+    const bd = await atGet(cfg['builds-table'], {
+      filterByFormula: `AND({BAO#} = '${baoValue}', {${cfg['build-status-field']}} = "${cfg['status-awaiting']}")`,
+      maxRecords: 1
+    });
+
+    if (!bd.records?.length) {
+      // Maybe it's already Building — check
+      const bd2 = await atGet(cfg['builds-table'], {
+        filterByFormula: `AND({BAO#} = '${baoValue}', {${cfg['build-status-field']}} = "${cfg['status-building']}")`,
+        maxRecords: 1
+      });
+      if (bd2.records?.length) {
+        showErr(`BAO# ${baoValue} is already in Building status.`);
+      } else {
+        showErr(`BAO# ${baoValue} not found or not in Awaiting Build status.`);
+      }
+      return;
+    }
+
+    const rec = bd.records[0];
+
+    // Claim it — set Start Build = me, status = Building
+    await atPatch(cfg['builds-table'], rec.id, {
+      [cfg['build-status-field']]: cfg['status-building'],
+      [cfg['start-build-field']]: [employee.recordId]
+    });
+
+    // Update local record
+    rec.fields[cfg['build-status-field']] = cfg['status-building'];
+    rec.fields[cfg['start-build-field']] = [employee.recordId];
+
+    // Fetch SKU
+    const newBuilds = await loadBuildsWithSku([rec]);
+    builds = [...builds, ...newBuilds];
+    selIdx = builds.length - 1;
+    document.getElementById('build-count').textContent = `(${builds.length})`;
+    renderBuilds();
+    renderRight(selIdx);
+    showOk(`✓ BAO# ${baoValue} claimed — status set to Building.`);
+
+  } catch(err) {
+    console.error(err); showErr('Airtable error: ' + err.message);
+  }
+}
+
+async function loadBuildsWithSku(records) {
+  return Promise.all(records.map(async rec => {
+    const skuIds = rec.fields[cfg['build-sku-field']];
+    let sku = null;
+    if (skuIds?.length) {
+      try {
+        const sr = await atGetRec(cfg['sku-table'], skuIds[0]);
+        sku = {
+          name: sr.fields[cfg['sku-name-field']]||'Unknown SKU',
+          diagram: sr.fields[cfg['diagram-field']]?.[0]||null,
+          productImg: sr.fields[cfg['product-img-field']]?.[0]||null
+        };
+      } catch(e) { console.warn('SKU fetch failed', e); }
+    }
+    return { record: rec, sku, status: rec.fields[cfg['build-status-field']]||cfg['status-building'] };
+  }));
 }
 
 // ── ADVANCE STATUS ──────────────────────────────────────
@@ -421,6 +516,7 @@ async function advanceBuild(idx) {
         document.getElementById('build-count').textContent = builds.length ? `(${builds.length})` : '';
         renderBuilds();
         builds.length ? renderRight(0) : setRight('no-builds');
+        if (!builds.length) setScanMode('badge');
       }, 1600);
     } else {
       showOk(`✓ Status updated to "${newStatus}".`);
@@ -534,7 +630,7 @@ function setRight(state, msg='') {
   if (state==='loading') {
     p.innerHTML=`<div class="loading-state"><div class="lbar"><div class="lbar-i"></div></div><div class="ltxt">${x(msg)||'LOADING...'}</div></div>`;
   } else if (state==='no-builds') {
-    p.innerHTML=`<div class="empty-state"><div class="bi">✓</div><h3>${x(employee?.name||'')}</h3><p>No active "Building" builds found for this employee.</p></div>`;
+    p.innerHTML=`<div class="empty-state"><div class="bi">⬡</div><h3>${x(employee?.name||'')}</h3><p>No active builds. Scan a BAO# to claim one.</p><div class="scan-anim"></div></div>`;
   } else {
     p.innerHTML=`<div class="empty-state"><div class="bi">⬡</div><h3>Ready to Scan</h3><p>Scan an employee badge to load their active builds and view diagrams.</p><div class="scan-anim"></div></div>`;
   }
