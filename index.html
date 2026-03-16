@@ -607,19 +607,19 @@ async function processBadge(badgeId) {
 }
 
 async function processBAO(baoValue) {
-  // First check if this is actually a badge scan (re-login)
+  // First check if this is actually a badge/name scan (re-login)
   try {
     const ed = await atGet(cfg['emp-table'], {
-      filterByFormula: `{${cfg['emp-id-field']}} = '${baoValue}'`,
+      filterByFormula: `OR(LOWER({${cfg['emp-id-field']}}) = '${baoValue.toLowerCase()}', LOWER({${cfg['emp-name-field']}}) = '${baoValue.toLowerCase()}')`,
       maxRecords: 1
     });
     if (ed.records?.length) {
-      // It's a badge — treat as fresh login
+      // It's an employee — treat as fresh login
       setScanMode('badge');
       await processBadge(baoValue);
       return;
     }
-  } catch(e) { /* not a badge, continue */ }
+  } catch(e) { /* not an employee, continue */ }
 
   if (!employee) { showErr('Please scan your badge first.'); setScanMode('badge'); return; }
 
