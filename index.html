@@ -374,8 +374,10 @@ async function processBadge(badgeId) {
     addHistory(employee);
 
     // Load active builds (Building + Start Build = me)
+    // Use employee name for linked field lookup — FIND on record ID is unreliable
     setRight('loading', 'Loading active builds...');
-    const filter = `AND(FIND("${er.id}", ARRAYJOIN({${cfg['start-build-field']}}, ",")), {${cfg['build-status-field']}} = "${cfg['status-building']}")`;
+    const empName = er.fields[cfg['emp-name-field']] || '';
+    const filter = `AND(FIND("${empName}", ARRAYJOIN({${cfg['start-build-field']}}, ",")), {${cfg['build-status-field']}} = "${cfg['status-building']}")`;
     const bd = await atGet(cfg['builds-table'], { filterByFormula: filter });
 
     builds = await loadBuildsWithSku(bd.records || []);
