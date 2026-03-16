@@ -595,11 +595,11 @@ async function loadBuildsWithSku(records) {
     if (skuIds?.length) {
       try {
         const sr = await atGetRec(cfg['sku-table'], skuIds[0]);
-        console.log('Product Photo raw:', JSON.stringify(sr.fields[cfg['product-img-field']]));
         sku = {
           name: sr.fields[cfg['sku-name-field']]||'Unknown SKU',
           diagram: sr.fields[cfg['diagram-field']]?.[0]||null,
-          productImg: sr.fields[cfg['product-img-field']]?.[0]||null
+          productImg: sr.fields[cfg['product-img-field']]?.[0]||null,
+          difficulty: sr.fields['Difficulty']||null
         };
       } catch(e) { console.warn('SKU fetch failed', e); }
     }
@@ -697,6 +697,7 @@ function renderRight(idx) {
   const sc = scls(b.status);
   const f = b.record.fields;
   const baoNum = f['BAO#'] || '—';
+  const difficulty = sku?.difficulty || null;
 
   // Stage progress bar
   const stages = [cfg['status-awaiting'], cfg['status-building'], cfg['status-check']];
@@ -726,10 +727,6 @@ function renderRight(idx) {
     prodHtml = `<div class="prod-ph">No image</div>`;
   }
 
-  // Tracking field display
-  const startBuild = Array.isArray(f[cfg['start-build-field']]) && f[cfg['start-build-field']].length ? '✓ Set' : '—';
-  const builtBy    = Array.isArray(f[cfg['built-by-field']])    && f[cfg['built-by-field']].length    ? '✓ Set' : '—';
-
   document.getElementById('right-panel').innerHTML = `
     <div class="diagram-zone">
       <div class="stage-bar">${stageBar}</div>
@@ -751,11 +748,10 @@ function renderRight(idx) {
         <div class="prod-title">BAO# ${x(String(baoNum))}</div>
         <div class="info-grid">
           <div class="ic"><label>SKU</label><span>${x(skuName)}</span></div>
+          <div class="ic"><label>BAO#</label><span>${x(String(baoNum))}</span></div>
           <div class="ic"><label>Status</label><span class="spill ${sc}" style="font-size:0.57rem">● ${x(b.status)}</span></div>
           <div class="ic"><label>Employee</label><span>${x(employee?.name||'—')}</span></div>
-          <div class="ic"><label>BAO#</label><span>${x(String(baoNum))}</span></div>
-          <div class="ic"><label>Start Build</label><span style="color:${startBuild==='✓ Set'?'var(--green)':'var(--muted)'}">${startBuild}</span></div>
-          <div class="ic"><label>Built By</label><span style="color:${builtBy==='✓ Set'?'var(--green)':'var(--muted)'}">${builtBy}</span></div>
+          ${difficulty ? `<div class="ic" style="grid-column:1/-1"><label>Difficulty</label><span style="color:var(--accent)">${x(String(difficulty))}</span></div>` : ''}
         </div>
       </div>
     </div>`;
