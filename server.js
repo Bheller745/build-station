@@ -9,7 +9,7 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -22,12 +22,15 @@ app.use(express.static(path.join(__dirname)));
 // GET  /api/airtable/:base/:table/:recordId
 // PATCH /api/airtable/:base/:table/:recordId
 
+// Token comes from environment variable — never from the client
+const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
+
 app.all('/api/airtable/:base/:table/:recordId?', async (req, res) => {
   const { base, table, recordId } = req.params;
-  const token = req.headers['x-airtable-token'];
+  const token = AIRTABLE_TOKEN;
 
   if (!token) {
-    return res.status(401).json({ error: { message: 'Missing x-airtable-token header' } });
+    return res.status(500).json({ error: { message: 'AIRTABLE_TOKEN environment variable not set on server.' } });
   }
 
   // Build Airtable URL
