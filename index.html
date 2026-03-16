@@ -1032,7 +1032,7 @@ async function runReport() {
       let offset = null;
       do {
         const params = {
-          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", IS_AFTER(LAST_MODIFIED_TIME(), '${mondayStr}'))`
+          filterByFormula: `{${cfg['build-status-field']}} = "${status}"`
         };
         if (offset) params.offset = offset;
         const data = await atGet(cfg['builds-table'], params);
@@ -1048,9 +1048,14 @@ async function runReport() {
     ]);
     // Trim to end date client-side
     const withinRange = r => {
-      const mod = r.fields['Last Modified'] || r.fields['lastModifiedTime'];
-      if (!mod) return true;
-      return new Date(mod) <= rangeEnd;
+      // Use Time Built array — check if any entry falls within range
+      const timBuilt = r.fields['Time Built'];
+      if (!timBuilt) return false;
+      const dates = Array.isArray(timBuilt) ? timBuilt : [timBuilt];
+      return dates.some(d => {
+        const dt = new Date(d);
+        return dt >= rangeStart && dt <= rangeEnd;
+      });
     };
     const buildingData = { records: buildingRecs_all.filter(withinRange) };
     const checkData    = { records: checkRecs_all.filter(withinRange) };
@@ -1096,21 +1101,30 @@ async function runReport() {
     const rowHtml = rec => {
       const sku = getSku(rec);
       const bao = rec.fields['BAO#'] || '—';
-      const mod = rec.fields['Last Modified'] ? new Date(rec.fields['Last Modified']).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
+      const qty = rec.fields['QTY'] || '—';
+      // Time Built is an array of timestamps — show the most recent
+      const timBuilt = rec.fields['Time Built'];
+      let dateStr = '—';
+      if (timBuilt) {
+        const dates = Array.isArray(timBuilt) ? timBuilt : [timBuilt];
+        const latest = dates.sort().pop();
+        dateStr = new Date(latest).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      }
       const status = rec.fields[cfg['build-status-field']] || '—';
       const sc = scls(status);
       return `<tr>
         <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${x(String(bao))}</td>
         <td>${x(sku.name)}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;text-align:center">${x(String(qty))}</td>
         <td>${sku.difficulty ? `<span class="diff-badge ${diffClass(sku.difficulty)}">${x(sku.difficulty)}</span>` : '—'}</td>
         <td><span class="spill ${sc}" style="font-size:0.55rem">● ${x(status)}</span></td>
-        <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem">${mod}</td>
+        <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem">${dateStr}</td>
       </tr>`;
     };
 
     const tableHead = `<table class="report-table">
       <thead><tr>
-        <th>BAO#</th><th>SKU</th><th>Difficulty</th><th>Status</th><th>Date</th>
+        <th>BAO#</th><th>SKU</th><th>QTY</th><th>Difficulty</th><th>Status</th><th>Date</th>
       </tr></thead><tbody>`;
 
     let html = `
