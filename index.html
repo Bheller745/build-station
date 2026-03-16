@@ -576,7 +576,6 @@ async function processBadge(badgeId) {
       filterByFormula: `{${cfg['build-status-field']}} = "${cfg['status-building']}"`
     });
     if (bd.records?.length) {
-      console.log('DEBUG employee recordId:', er.id, 'empName:', empName);
     }
     // Match by record ID or display name — Airtable can return either
     bd.records = (bd.records || []).filter(rec => {
@@ -987,13 +986,11 @@ async function runReport() {
       filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', {${cfg['emp-id-field']}} = '${query}')`,
       maxRecords: 1
     });
-    console.log('Report empData:', JSON.stringify(empData));
     if (!empData.records?.length) {
       body.innerHTML = `<div class="report-empty">No employee found for "${query}"</div>`; return;
     }
     const emp = empData.records[0];
     const empName = emp.fields[cfg['emp-name-field']] || query;
-    console.log('empName:', empName, 'recordId:', emp.id);
 
     // Date range based on selected span
     const fmtDate = d => d.toISOString().split('T')[0];
@@ -1035,7 +1032,7 @@ async function runReport() {
       let offset = null;
       do {
         const params = {
-          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", IS_AFTER(LAST_MODIFIED_TIME(), '${mondayStr}'), IS_BEFORE(LAST_MODIFIED_TIME(), '${sundayStr}'))`
+          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", IS_AFTER(LAST_MODIFIED_TIME(), '${mondayStr}'))`
         };
         if (offset) params.offset = offset;
         const data = await atGet(cfg['builds-table'], params);
@@ -1049,17 +1046,24 @@ async function runReport() {
       fetchWeek(cfg['status-building']),
       fetchWeek(cfg['status-check'])
     ]);
-    console.log('Building records raw:', buildingRecs_all.length, JSON.stringify(buildingRecs_all.slice(0,2).map(r=>({bao:r.fields['BAO#'],sb:r.fields[cfg['start-build-field']],status:r.fields[cfg['build-status-field']]}))));
-    console.log('Check records raw:', checkRecs_all.length, JSON.stringify(checkRecs_all.slice(0,2).map(r=>({bao:r.fields['BAO#'],bb:r.fields[cfg['built-by-field']],status:r.fields[cfg['build-status-field']]}))));
-    const buildingData = { records: buildingRecs_all };
-    const checkData = { records: checkRecs_all };
+    // Trim to end date client-side
+    const withinRange = r => {
+      const mod = r.fields['Last Modified'] || r.fields['lastModifiedTime'];
+      if (!mod) return true;
+      return new Date(mod) <= rangeEnd;
+    };
+    const buildingData = { records: buildingRecs_all.filter(withinRange) };
+    const checkData    = { records: checkRecs_all.filter(withinRange) };
 
-    // Filter client-side by employee name in Start Build or Built By
-    const matchName = v => String(v||'').trim().toLowerCase() === empName.trim().toLowerCase();
+    // Filter client-side — linked record fields return record IDs, fallback to name match
     const filterByEmp = (records, field) => records.filter(r => {
       const val = r.fields[field];
       if (!val) return false;
-      return Array.isArray(val) ? val.some(matchName) : matchName(val);
+      const vals = Array.isArray(val) ? val : [val];
+      return vals.some(v =>
+        String(v).trim() === emp.id ||
+        String(v).trim().toLowerCase() === empName.trim().toLowerCase()
+      );
     });
 
     const buildingRecs = filterByEmp(buildingData.records||[], cfg['start-build-field']);
