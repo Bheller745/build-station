@@ -1060,10 +1060,12 @@ async function runReport() {
     });
     // Trim to end date client-side
     const withinRange = r => {
-      // Use Time Built array — check if any entry falls within range
+      // Try Time Built first, fall back to Last Modified
       const timBuilt = r.fields['Time Built'];
-      if (!timBuilt) return false;
-      const dates = Array.isArray(timBuilt) ? timBuilt : [timBuilt];
+      const lastMod  = r.fields['Last Modified'];
+      const raw = timBuilt || lastMod;
+      if (!raw) return true; // no date info — include it
+      const dates = Array.isArray(raw) ? raw : [raw];
       return dates.some(d => {
         const dt = new Date(d);
         return dt >= rangeStart && dt <= rangeEnd;
@@ -1072,6 +1074,16 @@ async function runReport() {
     const buildingData = { records: buildingRecs_all.filter(withinRange) };
     const checkData    = { records: checkRecs_all.filter(withinRange) };
     console.log('REPORT after date filter — building:', buildingData.records.length, 'check:', checkData.records.length);
+    if (checkRecs_all.length) {
+      const sample = checkRecs_all[0];
+      console.log('REPORT sample Time Built:', JSON.stringify(sample.fields['Time Built']));
+      console.log('REPORT rangeStart:', rangeStart.toISOString(), 'rangeEnd:', rangeEnd.toISOString());
+      const tb = sample.fields['Time Built'];
+      if (tb) {
+        const dates = Array.isArray(tb) ? tb : [tb];
+        dates.forEach(d => console.log('REPORT date check:', d, new Date(d) >= rangeStart, new Date(d) <= rangeEnd));
+      }
+    }
 
     const buildingRecs = matchEmp(buildingData.records||[], cfg['start-build-field']);
     const checkRecs    = matchEmp(checkData.records||[], cfg['built-by-field']);
