@@ -1026,30 +1026,20 @@ async function runReport() {
     const mondayStr = fmtDate(rangeStart);
     const sundayStr = fmtDate(rangeEnd);
 
-    // Fetch all Building and Check BAOs modified this week — filter by employee client-side
-    // Fetch by status + date range, filter client-side by employee (FIND on linked fields unreliable)
-        // Query Airtable directly by employee name in the linked fields
-    const fetchByEmp = async (status, linkField) => {
-      let allRecords = [];
-      let offset = null;
-      do {
-        const params = {
-          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", {${linkField}} = "${empName}")`
-        };
-        if (offset) params.offset = offset;
-        const data = await atGet(cfg['builds-table'], params);
-        allRecords = allRecords.concat(data.records || []);
-        offset = data.offset || null;
-      } while (offset);
-      return allRecords;
-    };
+    // Fetch all BAO records where Built By = this employee, paginated
+    let allRecords_raw = [];
+    let offset = null;
+    do {
+      const params = {
+        filterByFormula: `{${cfg['built-by-field']}} = "${empName}"`
+      };
+      if (offset) params.offset = offset;
+      const data = await atGet(cfg['builds-table'], params);
+      allRecords_raw = allRecords_raw.concat(data.records || []);
+      offset = data.offset || null;
+    } while (offset);
 
-    const [buildingRecs_all, checkRecs_all] = await Promise.all([
-      fetchByEmp(cfg['status-building'], cfg['start-build-field']),
-      fetchByEmp(cfg['status-check'],    cfg['built-by-field'])
-    ]);
-
-    // Filter by Time Built date range client-side
+    // Filter by Time Built date range (records without Time Built are excluded)
     const withinRange = r => {
       const tb = r.fields['Time Built'];
       if (!tb) return false;
@@ -1060,10 +1050,9 @@ async function runReport() {
       });
     };
 
-    const buildingRecs = buildingRecs_all.filter(withinRange);
-    const checkRecs    = checkRecs_all.filter(withinRange);
-    // Fetch SKU names for all records
-    const allRecs = [...buildingRecs, ...checkRecs];
+    const allRecs = allRecords_raw.filter(withinRange);
+    const buildingRecs = allRecs.filter(r => (r.fields[cfg['build-status-field']]||'').toLowerCase().includes('build'));
+    const checkRecs    = allRecs.filter(r => (r.fields[cfg['build-status-field']]||'').toLowerCase().includes('check'));
     const skuCache = {};
     await Promise.all([...new Set(allRecs.flatMap(r => r.fields[cfg['build-sku-field']]||[]))].map(async id => {
       try {
