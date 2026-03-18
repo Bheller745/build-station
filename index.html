@@ -1066,8 +1066,17 @@ async function runReport() {
       });
     };
 
-    const buildingRecs = matchEmp(buildingRecs_all, cfg['start-build-field']).filter(withinRange);
-    const checkRecs    = matchEmp(checkRecs_all,    cfg['built-by-field']).filter(withinRange);
+    const buildingEmp = matchEmp(buildingRecs_all, cfg['start-build-field']);
+    const checkEmp    = matchEmp(checkRecs_all,    cfg['built-by-field']);
+    console.log('after matchEmp — building:', buildingEmp.length, 'check:', checkEmp.length);
+    if (checkEmp.length) {
+      const tb = checkEmp[0].fields['Time Built'];
+      console.log('sample Time Built:', JSON.stringify(tb));
+      console.log('rangeStart:', rangeStart.toISOString(), 'rangeEnd:', rangeEnd.toISOString());
+    }
+    const buildingRecs = buildingEmp.filter(withinRange);
+    const checkRecs    = checkEmp.filter(withinRange);
+    console.log('after withinRange — building:', buildingRecs.length, 'check:', checkRecs.length);
 
     // Fetch SKU names for all records
     const allRecs = [...buildingRecs, ...checkRecs];
