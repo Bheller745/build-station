@@ -986,13 +986,11 @@ async function runReport() {
       filterByFormula: `OR(LOWER({${cfg['emp-name-field']}}) = '${query.toLowerCase()}', {${cfg['emp-id-field']}} = '${query}')`,
       maxRecords: 1
     });
-    console.log('REPORT empData:', JSON.stringify(empData?.records?.length), empData?.records?.[0]?.id);
     if (!empData.records?.length) {
       body.innerHTML = `<div class="report-empty">No employee found for "${query}"</div>`; return;
     }
     const emp = empData.records[0];
     const empName = emp.fields[cfg['emp-name-field']] || query;
-    console.log('REPORT empName:', empName, 'id:', emp.id);
 
     // Date range based on selected span
     const fmtDate = d => d.toISOString().split('T')[0];
@@ -1049,7 +1047,6 @@ async function runReport() {
       fetchForEmp(cfg['status-building']),
       fetchForEmp(cfg['status-check'])
     ]);
-    console.log('REPORT building raw:', buildingRecs_all.length, 'check raw:', checkRecs_all.length);
 
     // Filter client-side by employee record ID
     const matchEmp = (records, field) => records.filter(r => {
@@ -1073,10 +1070,8 @@ async function runReport() {
     };
     const buildingData = { records: buildingRecs_all.filter(withinRange) };
     const checkData    = { records: checkRecs_all.filter(withinRange) };
-    console.log('REPORT after date filter — building:', buildingData.records.length, 'check:', checkData.records.length);
     if (checkRecs_all.length) {
       const sample = checkRecs_all[0];
-      console.log('REPORT sample Time Built:', JSON.stringify(sample.fields['Time Built']));
       console.log('REPORT rangeStart:', rangeStart.toISOString(), 'rangeEnd:', rangeEnd.toISOString());
       const tb = sample.fields['Time Built'];
       if (tb) {
@@ -1085,8 +1080,13 @@ async function runReport() {
       }
     }
 
+    if (checkData.records?.length) {
+      const s = checkData.records[0];
+      console.log('MATCH sample Built By:', JSON.stringify(s.fields[cfg['built-by-field']]), '| emp.id:', emp.id, '| empName:', empName);
+    }
     const buildingRecs = matchEmp(buildingData.records||[], cfg['start-build-field']);
     const checkRecs    = matchEmp(checkData.records||[], cfg['built-by-field']);
+    console.log('MATCH after — building:', buildingRecs.length, 'check:', checkRecs.length);
 
     // Fetch SKU names for all records
     const allRecs = [...buildingRecs, ...checkRecs];
