@@ -335,7 +335,12 @@
 <div id="app" style="display:none">
   <header>
     <div class="logo">BUILD<span> // </span>STATION</div>
-    <div class="hdr-right">
+    <div class="hdr-right" style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input id="token-input" type="password" placeholder="Airtable API token..." autocomplete="off"
+          style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;padding:5px 9px;width:220px;outline:none;">
+        <button onclick="saveToken()" style="background:var(--accent);color:#000;border:none;font-family:'Bebas Neue',sans-serif;font-size:0.85rem;letter-spacing:1px;padding:5px 10px;cursor:pointer;">SAVE</button>
+      </div>
       <div class="hdr-status"><span class="dot"></span>CONNECTED &nbsp;|&nbsp; <span id="hdr-base" style="color:var(--accent)"></span></div>
     </div>
   </header>
@@ -465,7 +470,14 @@ function launchApp() {
 // The proxy forwards them to Airtable with your token server-side.
 
 const PROXY = '/api/airtable';
-const hdrs = () => ({ 'Content-Type': 'application/json' });
+const hdrs = () => {
+  const token = localStorage.getItem('airtable-token') || '';
+  return { 'Content-Type': 'application/json', ...(token ? { 'x-airtable-token': token } : {}) };
+};
+function saveToken() {
+  const val = document.getElementById('token-input').value.trim();
+  if (val) { localStorage.setItem('airtable-token', val); document.getElementById('token-input').value = ''; alert('Token saved.'); }
+}
 
 async function atGet(table, params={}) {
   const url = new URL(`${location.origin}${PROXY}/${cfg['base']}/${encodeURIComponent(table)}`);
@@ -527,6 +539,9 @@ function setScanMode(mode) {
 
 // ── SCAN ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('airtable-token')) {
+    document.getElementById('token-input').placeholder = 'Token saved ✓';
+  }
   launchApp();
   document.getElementById('scan-input').addEventListener('keydown', e => { if (e.key==='Enter') triggerScan(); });
   document.getElementById('report-search').addEventListener('keydown', e => { if (e.key==='Enter') runReport(); });
@@ -1031,7 +1046,7 @@ async function runReport() {
     let offset = null;
     do {
       const params = {
-        filterByFormula: `{${cfg['built-by-field']}} = "${empName}"`
+        filterByFormula: `FIND(LOWER("${empName}"), LOWER(ARRAYJOIN({${cfg['built-by-field']}})))`
       };
       if (offset) params.offset = offset;
       const data = await atGet(cfg['builds-table'], params);
@@ -1054,12 +1069,21 @@ async function runReport() {
     const buildingRecs = allRecs.filter(r => (r.fields[cfg['build-status-field']]||'').toLowerCase().includes('build'));
     const checkRecs    = allRecs.filter(r => (r.fields[cfg['build-status-field']]||'').toLowerCase().includes('check'));
     const skuCache = {};
-    await Promise.all([...new Set(allRecs.flatMap(r => r.fields[cfg['build-sku-field']]||[]))].map(async id => {
-      try {
-        const sr = await atGetRec(cfg['sku-table'], id);
-        skuCache[id] = { name: sr.fields[cfg['sku-name-field']]||'—', difficulty: sr.fields['Difficulty']||null };
-      } catch(e) {}
-    }));
+    const ordersCache = {};
+    await Promise.all([
+      ...[...new Set(allRecs.flatMap(r => r.fields[cfg['build-sku-field']]||[]))].map(async id => {
+        try {
+          const sr = await atGetRec(cfg['sku-table'], id);
+          skuCache[id] = { name: sr.fields[cfg['sku-name-field']]||'—', difficulty: sr.fields['Difficulty']||null };
+        } catch(e) {}
+      }),
+      ...[...new Set(allRecs.flatMap(r => r.fields['ORDERS']||[]))].map(async id => {
+        try {
+          const or = await atGetRec('ORDERS', id);
+          ordersCache[id] = or.fields['ORDER ID'] || '—';
+        } catch(e) {}
+      })
+    ]);
 
     const getSku = rec => {
       const ids = rec.fields[cfg['build-sku-field']]||[];
@@ -1095,28 +1119,30 @@ async function runReport() {
     const rowHtml = rec => {
       const sku = getSku(rec);
       const bao = rec.fields['BAO#'] || '—';
-      const orders = rec.fields['ORDERS'] || '—';
+      const orders = rec.fields['ORDERS'] || [];
+      const ordersDisplay = orders.length ? orders.map(id => ordersCache[id] || id).join(', ') : '—';
       const qty = rec.fields['QTY'] || '—';
+      const pay = rec.fields['Total Pay'] != null ? `$${Number(rec.fields['Total Pay']).toFixed(2)}` : '—';
       const d = getLatestDate(rec);
       const dateStr = d ? d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
       return `<tr>
         <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${x(String(bao))}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem">${x(String(orders))}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem">${x(ordersDisplay)}</td>
         <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem">${dateStr}</td>
         <td>${x(sku.name)}</td>
         <td style="font-family:'IBM Plex Mono',monospace;text-align:center">${x(String(qty))}</td>
         <td>${sku.difficulty ? `<span class="diff-badge ${diffClass(sku.difficulty)}">${x(sku.difficulty)}</span>` : '—'}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--green)">${pay}</td>
       </tr>`;
     };
 
     const tableHead = `<table class="report-table">
       <thead><tr>
-        <th>BAO#</th><th>ORDERS</th><th>Time Built</th><th>SKU</th><th>QTY</th><th>Difficulty</th>
+        <th>BAO#</th><th>ORDERS</th><th>Time Built</th><th>SKU</th><th>QTY</th><th>Difficulty</th><th>Pay</th>
       </tr></thead><tbody>`;
 
-    // Sort both groups by date
-    const buildingSorted = sortByDate(buildingRecs);
-    const checkSorted    = sortByDate(checkRecs);
+    // Sort all records by date
+    const allSorted = sortByDate(allRecs);
 
     // Total pay across all records
     const totalPay = allRecs.reduce((sum, r) => sum + (Number(r.fields['Total Pay']) || 0), 0);
@@ -1127,9 +1153,7 @@ async function runReport() {
         <div class="report-name">${x(empName)}</div>
         <div class="report-week">${weekLabel}</div>
         <div class="report-summary">
-          <div class="report-stat"><label>Building</label><span>${buildingRecs.length}</span></div>
-          <div class="report-stat"><label>Check</label><span>${checkRecs.length}</span></div>
-          <div class="report-stat"><label>Total</label><span>${allRecs.length}</span></div>
+          <div class="report-stat"><label>Total Builds</label><span>${allRecs.length}</span></div>
           <div class="report-stat"><label>Total Pay</label><span style="font-size:1.4rem;color:var(--green)">${totalPayStr}</span></div>
         </div>
       </div>`;
@@ -1137,16 +1161,10 @@ async function runReport() {
     if (!allRecs.length) {
       html += '<div class="report-empty">No builds found for this period.</div>';
     } else {
-      if (buildingSorted.length) {
+      if (allSorted.length) {
         html += `<div class="report-group">
-          <div class="report-group-title">Building <span class="report-group-count">${buildingSorted.length}</span></div>
-          ${tableHead}${buildingSorted.map(rowHtml).join('')}</tbody></table>
-        </div>`;
-      }
-      if (checkSorted.length) {
-        html += `<div class="report-group">
-          <div class="report-group-title">Check <span class="report-group-count">${checkSorted.length}</span></div>
-          ${tableHead}${checkSorted.map(rowHtml).join('')}</tbody></table>
+          <div class="report-group-title">Builds <span class="report-group-count">${allSorted.length}</span></div>
+          ${tableHead}${allSorted.map(rowHtml).join('')}</tbody></table>
         </div>`;
       }
     }
