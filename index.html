@@ -329,7 +329,19 @@
     .nav-tab { padding: 8px 12px; font-size: 0.58rem; letter-spacing: 1px; }
     .report-top { padding: 10px 12px; }
     .report-body { padding: 14px; }
-    .report-table th, .report-table td { padding: 6px 6px; font-size: 0.75rem; }
+    .report-table thead { display: none; }
+    .report-table, .report-table tbody, .report-table tr, .report-table td { display: block; width: 100%; }
+    .report-table tr { border: 1px solid var(--border); background: var(--surface); margin-bottom: 10px; border-left: 3px solid var(--accent); cursor: pointer; }
+    .report-table tr:hover td { background: transparent; }
+    .report-table td { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-bottom: 1px solid rgba(37,42,50,0.6); font-size: 0.8rem; }
+    .report-table td:last-child { border-bottom: none; }
+    .report-table td::before { content: attr(data-label); color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 1px; flex-shrink: 0; margin-right: 12px; }
+    /* Collapse middle rows — always show BAO# (first) and Pay (last) */
+    .report-table tr td:not(:first-child):not(:last-child) { display: none; }
+    .report-table tr.open td:not(:first-child):not(:last-child) { display: flex; }
+    /* Chevron on BAO# row */
+    .report-table tr td:first-child::after { content: '▼'; color: var(--muted); font-size: 0.55rem; transition: transform 0.2s; }
+    .report-table tr.open td:first-child::after { transform: rotate(180deg); }
   }
 
   /* Desktop — hide tab bar */
@@ -1150,14 +1162,14 @@ async function runReport() {
       const pay = rec.fields['Total Pay'] != null ? `$${Number(rec.fields['Total Pay']).toFixed(2)}` : '—';
       const d = getLatestDate(rec);
       const dateStr = d ? d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
-      return `<tr>
-        <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${x(String(bao))}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem">${x(ordersDisplay)}</td>
-        <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem">${dateStr}</td>
-        <td>${x(sku.name)}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;text-align:center">${x(String(qty))}</td>
-        <td>${sku.difficulty ? `<span class="diff-badge ${diffClass(sku.difficulty)}">${x(sku.difficulty)}</span>` : '—'}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--green)">${pay}</td>
+      return `<tr onclick="this.classList.toggle('open')">
+        <td data-label="BAO#" style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${x(String(bao))}</td>
+        <td data-label="Orders" style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem">${x(ordersDisplay)}</td>
+        <td data-label="Time Built" style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem">${dateStr}</td>
+        <td data-label="SKU">${x(sku.name)}</td>
+        <td data-label="QTY" style="font-family:'IBM Plex Mono',monospace;text-align:center">${x(String(qty))}</td>
+        <td data-label="Difficulty">${sku.difficulty ? `<span class="diff-badge ${diffClass(sku.difficulty)}">${x(sku.difficulty)}</span>` : '—'}</td>
+        <td data-label="Pay" style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--green)">${pay}</td>
       </tr>`;
     };
 
