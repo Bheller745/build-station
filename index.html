@@ -589,7 +589,7 @@ async function processBadge(badgeId) {
     const er = ed.records[0];
     employee = { id: badgeId, recordId: er.id, name: er.fields[cfg['emp-name-field']]||'Unknown' };
     renderEmp();
-    addHistory(employee);
+    addHistory({ type: 'badge', id: employee.id, name: employee.name });
 
     // Load active builds (Building + Start Build = me)
     // Use employee name for linked field lookup — FIND on record ID is unreliable
@@ -677,6 +677,7 @@ async function processBAO(baoValue) {
           renderBuilds();
           builds.length ? renderRight(0) : setRight('no-builds');
         }
+        addHistory({ type: 'bao', id: baoValue, label: 'Advanced to Check' });
         showOk(`✓ BAO# ${baoValue} advanced to Check — Built By set to ${employee.name}.`);
       } else {
         showErr(`BAO# ${baoValue} not found or not in Awaiting Build status.`);
@@ -704,6 +705,7 @@ async function processBAO(baoValue) {
     renderBuilds();
     renderRight(selIdx);
     mobShowDiagram();
+    addHistory({ type: 'bao', id: baoValue, label: 'Claimed → Building' });
     showOk(`✓ BAO# ${baoValue} claimed — status set to Building.`);
 
   } catch(err) {
@@ -759,8 +761,10 @@ async function advanceBuild(idx) {
     builds[idx].status = newStatus;
     builds[idx].record.fields[cfg['build-status-field']] = newStatus;
 
+    const baoNum = b.record.fields['BAO#'] || b.record.id;
     const isFinal = !nextStatus(newStatus);
     if (isFinal) {
+      addHistory({ type: 'bao', id: baoNum, label: `Advanced to ${newStatus}` });
       showOk(`✓ Advanced to "${newStatus}" — build removed from active list.`);
       setTimeout(() => {
         builds.splice(idx, 1);
@@ -771,6 +775,7 @@ async function advanceBuild(idx) {
         if (!builds.length) setScanMode('badge');
       }, 1600);
     } else {
+      addHistory({ type: 'bao', id: baoNum, label: `Status → ${newStatus}` });
       showOk(`✓ Status updated to "${newStatus}".`);
       renderBuilds(); renderRight(idx);
     }
@@ -892,21 +897,31 @@ function setRight(state, msg='') {
 }
 
 // ── HISTORY ─────────────────────────────────────────────
-function addHistory(emp) {
-  history = history.filter(h=>h.id!==emp.id);
-  history.unshift({...emp, time: new Date()});
-  if (history.length>20) history=history.slice(0,20);
+function addHistory(entry) {
+  // Badge entries deduplicate by id; BAO entries always append
+  if (entry.type === 'badge') history = history.filter(h => !(h.type === 'badge' && h.id === entry.id));
+  history.unshift({ ...entry, time: new Date() });
+  if (history.length > 20) history = history.slice(0, 20);
   renderHistory();
 }
 function renderHistory() {
   const c = document.getElementById('hist-list');
   if (!history.length) { c.innerHTML=`<span style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">No scans yet</span>`; return; }
-  c.innerHTML = history.map(h=>`
-    <div class="hist-item" onclick="rescan('${x(h.id)}')">
+  c.innerHTML = history.map(h => {
+    if (h.type === 'bao') {
+      const dot = h.label.includes('Check') ? 'background:var(--green)' : 'background:var(--accent)';
+      return `<div class="hist-item" style="cursor:default">
+        <div class="hdot" style="${dot}"></div>
+        <div style="flex:1"><div class="hname">${x('BAO# ' + h.id)}</div><div class="hsub">${x(h.label)}</div></div>
+        <div class="htime">${fmt(h.time)}</div>
+      </div>`;
+    }
+    return `<div class="hist-item" onclick="rescan('${x(h.id)}')">
       <div class="hdot"></div>
       <div style="flex:1"><div class="hname">${x(h.name)}</div><div class="hsub">${x(h.id)}</div></div>
       <div class="htime">${fmt(h.time)}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function rescan(id) { document.getElementById('scan-input').value=id; triggerScan(); }
 
