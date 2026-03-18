@@ -330,18 +330,38 @@
     .report-top { padding: 10px 12px; }
     .report-body { padding: 14px; }
     .report-table thead { display: none; }
-    .report-table, .report-table tbody, .report-table tr, .report-table td { display: block; width: 100%; }
-    .report-table tr { border: 1px solid var(--border); background: var(--surface); margin-bottom: 10px; border-left: 3px solid var(--accent); cursor: pointer; }
-    .report-table tr:hover td { background: transparent; }
-    .report-table td { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-bottom: 1px solid rgba(37,42,50,0.6); font-size: 0.8rem; }
-    .report-table td:last-child { border-bottom: none; }
-    .report-table td::before { content: attr(data-label); color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 1px; flex-shrink: 0; margin-right: 12px; }
-    /* Collapse middle rows — always show BAO# (first) and Pay (last) */
-    .report-table tr td:not(:first-child):not(:last-child) { display: none; }
-    .report-table tr.open td:not(:first-child):not(:last-child) { display: flex; }
-    /* Chevron on BAO# row */
-    .report-table tr td:first-child::after { content: '▼'; color: var(--muted); font-size: 0.55rem; transition: transform 0.2s; }
-    .report-table tr.open td:first-child::after { transform: rotate(180deg); }
+    .report-table, .report-table tbody { display: block; width: 100%; }
+
+    /* Collapsed card: flex-wrap so BAO# + SKU + QTY share top row, Pay below */
+    .report-table tr { display: flex; flex-wrap: wrap; align-items: stretch; border: 1px solid var(--border); background: var(--surface); margin-bottom: 10px; border-left: 3px solid var(--accent); cursor: pointer; overflow: hidden; }
+    .report-table td { display: flex; flex-direction: column; justify-content: center; padding: 8px 12px; font-size: 0.8rem; border-right: 1px solid rgba(37,42,50,0.4); }
+    .report-table td::before { content: attr(data-label); color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 0.52rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+
+    /* Top row: BAO# | SKU | QTY */
+    .report-table tr td:nth-child(1) { flex: 0 0 auto; min-width: 70px; }
+    .report-table tr td:nth-child(4) { flex: 1; border-right: none; }
+    .report-table tr td:nth-child(5) { flex: 0 0 52px; border-right: none; align-items: center; }
+    /* Pay: full-width row below */
+    .report-table tr td:nth-child(7) { flex: 1 1 100%; flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px solid rgba(37,42,50,0.4); border-right: none; padding: 7px 12px; }
+
+    /* Hide collapsed columns */
+    .report-table tr td:nth-child(2),
+    .report-table tr td:nth-child(3),
+    .report-table tr td:nth-child(6) { display: none; }
+
+    /* Chevron on right edge of top row */
+    .report-table tr::after { content: '▶'; display: flex; align-items: center; padding: 0 10px; color: var(--muted); font-size: 0.55rem; flex-shrink: 0; border-left: 1px solid rgba(37,42,50,0.4); align-self: stretch; order: 0; }
+    .report-table tr td:nth-child(7) { order: 1; }
+    .report-table tr.open::after { display: none; }
+
+    /* Open: revert to stacked rows */
+    .report-table tr.open { display: block; }
+    .report-table tr.open td { display: flex; flex-direction: row; justify-content: space-between; align-items: center; border-right: none; border-bottom: 1px solid rgba(37,42,50,0.6); }
+    .report-table tr.open td::before { flex-shrink: 0; margin-bottom: 0; margin-right: 12px; }
+    .report-table tr.open td:last-child { border-bottom: none; }
+    .report-table tr.open td:nth-child(2),
+    .report-table tr.open td:nth-child(3),
+    .report-table tr.open td:nth-child(6) { display: flex; }
   }
 
   /* Desktop — hide tab bar */
