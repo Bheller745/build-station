@@ -160,8 +160,22 @@
   .flash { animation:flashScan 0.4s ease-out; }
 
   /* Camera button */
-  .cam-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 0.9rem; padding: 0 14px; cursor: pointer; transition: all 0.2s; display: none; align-items: center; justify-content: center; }
-  .cam-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cam-btn {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    width: 44px;
+    min-width: 44px;
+    align-self: stretch;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .cam-btn svg { width: 20px; height: 20px; fill: currentColor; }
+  .cam-btn:hover { background: var(--accent); color: #000; }
   @media (max-width: 768px) { .cam-btn { display: flex; } }
 
   /* Camera overlay */
@@ -326,6 +340,12 @@
   }
 
 </style>
+<!-- Reusable SVG symbols -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-camera" viewBox="0 0 24 24">
+    <path d="M9 3L7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+  </symbol>
+</svg>
 </head>
 <body>
 
@@ -352,7 +372,9 @@
     <div class="scan-label" id="scan-label">▶ Step 1: Scan Employee Badge</div>
     <div class="scan-row">
       <input type="text" id="scan-input" placeholder="Focus here, then scan badge..." autocomplete="off" autofocus>
-      <button class="cam-btn" onclick="openCamera()" title="Scan with camera">📷</button>
+      <button class="cam-btn" onclick="openCamera()" title="Scan with camera">
+        <svg><use href="#icon-camera"/></svg>
+      </button>
       <button class="scan-go" onclick="triggerScan()">SCAN</button>
     </div>
     <div id="msg-err" class="msg err" style="display:none"></div>
@@ -397,7 +419,9 @@
   <div id="report-page">
     <div class="report-top">
       <input class="report-search" id="report-search" type="text" placeholder="Type employee name or scan badge..." autocomplete="off">
-      <button class="cam-btn" onclick="openCamera('report')" title="Scan badge">📷</button>
+      <button class="cam-btn" onclick="openCamera('report')" title="Scan badge">
+        <svg><use href="#icon-camera"/></svg>
+      </button>
       <button class="report-go" onclick="runReport()">SEARCH</button>
     </div>
     <div class="report-filters">
@@ -1051,8 +1075,6 @@ async function runReport() {
     };
 
     const allRecs = allRecords_raw.filter(withinRange);
-    const buildingRecs = allRecs.filter(r => (r.fields[cfg['build-status-field']]||'').toLowerCase().includes('build'));
-    const checkRecs    = allRecs.filter(r => (r.fields[cfg['build-status-field']]||'').toLowerCase().includes('check'));
     const skuCache = {};
     const ordersCache = {};
     await Promise.all([
@@ -1092,14 +1114,17 @@ async function runReport() {
       return new Date(dates.slice().sort().pop());
     };
 
-    // Sort records by latest Time Built date ascending
-    const sortByDate = recs => [...recs].sort((a, b) => {
-      const da = getLatestDate(a), db = getLatestDate(b);
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return da - db;
-    });
+    // Sort records by latest Time Built date ascending — cache parsed dates to avoid re-parsing per comparison
+    const sortByDate = recs => {
+      const dateCache = new Map(recs.map(r => [r.id, getLatestDate(r)]));
+      return [...recs].sort((a, b) => {
+        const da = dateCache.get(a.id), db = dateCache.get(b.id);
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return da - db;
+      });
+    };
 
     const rowHtml = rec => {
       const sku = getSku(rec);
@@ -1194,7 +1219,8 @@ function mobShowDiagram() {
 // ── UTILS ────────────────────────────────────────────────
 function clearMsgs() { ['msg-err','msg-ok'].forEach(id=>document.getElementById(id).style.display='none'); }
 function showErr(m) { const e=document.getElementById('msg-err'); e.style.display='block'; e.textContent=m; }
-function showOk(m)  { const e=document.getElementById('msg-ok');  e.style.display='block'; e.textContent=m; setTimeout(()=>e.style.display='none',4000); }
+let _okTimer = null;
+function showOk(m)  { const e=document.getElementById('msg-ok');  e.style.display='block'; e.textContent=m; clearTimeout(_okTimer); _okTimer=setTimeout(()=>e.style.display='none',4000); }
 function fmt(d) { return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
 function x(s) { if(s==null)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
