@@ -1029,12 +1029,13 @@ async function runReport() {
     const sundayStr = fmtDate(rangeEnd);
 
     // Fetch all Building and Check BAOs modified this week — filter by employee client-side
-    const fetchWeek = async (status) => {
+    // Fetch by employee record ID to avoid pulling all records
+    const fetchForEmp = async (status, linkField) => {
       let allRecords = [];
       let offset = null;
       do {
         const params = {
-          filterByFormula: `{${cfg['build-status-field']}} = "${status}"`
+          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", FIND("${emp.id}", ARRAYJOIN({${linkField}}, ",")))`
         };
         if (offset) params.offset = offset;
         const data = await atGet(cfg['builds-table'], params);
@@ -1045,11 +1046,10 @@ async function runReport() {
     };
 
     const [buildingRecs_all, checkRecs_all] = await Promise.all([
-      fetchWeek(cfg['status-building']),
-      fetchWeek(cfg['status-check'])
+      fetchForEmp(cfg['status-building'], cfg['start-build-field']),
+      fetchForEmp(cfg['status-check'], cfg['built-by-field'])
     ]);
-    console.log('REPORT building raw:', buildingRecs_all.length, 'check raw:', checkRecs_all.length);
-    if (checkRecs_all.length) console.log('REPORT first check bb field:', JSON.stringify(checkRecs_all[0].fields[cfg['built-by-field']]), 'emp.id:', emp.id);
+    console.log('REPORT building:', buildingRecs_all.length, 'check:', checkRecs_all.length);
     // Trim to end date client-side
     const withinRange = r => {
       // Use Time Built array — check if any entry falls within range
@@ -1065,19 +1065,9 @@ async function runReport() {
     const checkData    = { records: checkRecs_all.filter(withinRange) };
     console.log('REPORT after date filter — building:', buildingData.records.length, 'check:', checkData.records.length);
 
-    // Filter client-side — linked record fields return record IDs, fallback to name match
-    const filterByEmp = (records, field) => records.filter(r => {
-      const val = r.fields[field];
-      if (!val) return false;
-      const vals = Array.isArray(val) ? val : [val];
-      return vals.some(v =>
-        String(v).trim() === emp.id ||
-        String(v).trim().toLowerCase() === empName.trim().toLowerCase()
-      );
-    });
-
-    const buildingRecs = filterByEmp(buildingData.records||[], cfg['start-build-field']);
-    const checkRecs    = filterByEmp(checkData.records||[], cfg['built-by-field']);
+    // Already filtered by employee in Airtable query — just use directly
+    const buildingRecs = buildingData.records || [];
+    const checkRecs    = checkData.records || [];
 
     // Fetch SKU names for all records
     const allRecs = [...buildingRecs, ...checkRecs];
