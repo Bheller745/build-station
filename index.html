@@ -335,12 +335,7 @@
 <div id="app" style="display:none">
   <header>
     <div class="logo">BUILD<span> // </span>STATION</div>
-    <div class="hdr-right" style="display:flex;align-items:center;gap:10px;">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <input id="token-input" type="password" placeholder="Airtable API token..." autocomplete="off"
-          style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;padding:5px 9px;width:220px;outline:none;">
-        <button onclick="saveToken()" style="background:var(--accent);color:#000;border:none;font-family:'Bebas Neue',sans-serif;font-size:0.85rem;letter-spacing:1px;padding:5px 10px;cursor:pointer;">SAVE</button>
-      </div>
+    <div class="hdr-right">
       <div class="hdr-status"><span class="dot"></span>CONNECTED &nbsp;|&nbsp; <span id="hdr-base" style="color:var(--accent)"></span></div>
     </div>
   </header>
@@ -470,14 +465,7 @@ function launchApp() {
 // The proxy forwards them to Airtable with your token server-side.
 
 const PROXY = '/api/airtable';
-const hdrs = () => {
-  const token = localStorage.getItem('airtable-token') || '';
-  return { 'Content-Type': 'application/json', ...(token ? { 'x-airtable-token': token } : {}) };
-};
-function saveToken() {
-  const val = document.getElementById('token-input').value.trim();
-  if (val) { localStorage.setItem('airtable-token', val); document.getElementById('token-input').value = ''; alert('Token saved.'); }
-}
+const hdrs = () => ({ 'Content-Type': 'application/json' });
 
 async function atGet(table, params={}) {
   const url = new URL(`${location.origin}${PROXY}/${cfg['base']}/${encodeURIComponent(table)}`);
@@ -539,9 +527,6 @@ function setScanMode(mode) {
 
 // ── SCAN ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('airtable-token')) {
-    document.getElementById('token-input').placeholder = 'Token saved ✓';
-  }
   launchApp();
   document.getElementById('scan-input').addEventListener('keydown', e => { if (e.key==='Enter') triggerScan(); });
   document.getElementById('report-search').addEventListener('keydown', e => { if (e.key==='Enter') runReport(); });
