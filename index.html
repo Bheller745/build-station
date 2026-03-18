@@ -1028,13 +1028,12 @@ async function runReport() {
 
     // Fetch all Building and Check BAOs modified this week — filter by employee client-side
     // Fetch by status + date range, filter client-side by employee (FIND on linked fields unreliable)
-    const fetchForEmp = async (status) => {
+    // Fetch all by status, then filter client-side by employee + date
+    const fetchAll = async (status) => {
       let allRecords = [];
       let offset = null;
       do {
-        const params = {
-          filterByFormula: `AND({${cfg['build-status-field']}} = "${status}", IS_AFTER(LAST_MODIFIED_TIME(), '${mondayStr}'))`
-        };
+        const params = { filterByFormula: `{${cfg['build-status-field']}} = "${status}"` };
         if (offset) params.offset = offset;
         const data = await atGet(cfg['builds-table'], params);
         allRecords = allRecords.concat(data.records || []);
@@ -1044,49 +1043,31 @@ async function runReport() {
     };
 
     const [buildingRecs_all, checkRecs_all] = await Promise.all([
-      fetchForEmp(cfg['status-building']),
-      fetchForEmp(cfg['status-check'])
+      fetchAll(cfg['status-building']),
+      fetchAll(cfg['status-check'])
     ]);
 
-    // Filter client-side by employee record ID
+    // Filter by employee record ID or name
     const matchEmp = (records, field) => records.filter(r => {
       const val = r.fields[field];
       if (!val) return false;
       const vals = Array.isArray(val) ? val : [val];
       return vals.some(v => String(v).trim() === emp.id || String(v).trim().toLowerCase() === empName.trim().toLowerCase());
     });
-    // Trim to end date client-side
+
+    // Filter by Time Built date range
     const withinRange = r => {
-      // Try Time Built first, fall back to Last Modified
-      const timBuilt = r.fields['Time Built'];
-      const lastMod  = r.fields['Last Modified'];
-      const raw = timBuilt || lastMod;
-      if (!raw) return true; // no date info — include it
-      const dates = Array.isArray(raw) ? raw : [raw];
+      const tb = r.fields['Time Built'];
+      if (!tb) return false;
+      const dates = Array.isArray(tb) ? tb : [tb];
       return dates.some(d => {
         const dt = new Date(d);
         return dt >= rangeStart && dt <= rangeEnd;
       });
     };
-    const buildingData = { records: buildingRecs_all.filter(withinRange) };
-    const checkData    = { records: checkRecs_all.filter(withinRange) };
-    if (checkRecs_all.length) {
-      const sample = checkRecs_all[0];
-      console.log('REPORT rangeStart:', rangeStart.toISOString(), 'rangeEnd:', rangeEnd.toISOString());
-      const tb = sample.fields['Time Built'];
-      if (tb) {
-        const dates = Array.isArray(tb) ? tb : [tb];
-        dates.forEach(d => console.log('REPORT date check:', d, new Date(d) >= rangeStart, new Date(d) <= rangeEnd));
-      }
-    }
 
-    if (checkData.records?.length) {
-      const s = checkData.records[0];
-      console.log('MATCH sample Built By:', JSON.stringify(s.fields[cfg['built-by-field']]), '| emp.id:', emp.id, '| empName:', empName);
-    }
-    const buildingRecs = matchEmp(buildingData.records||[], cfg['start-build-field']);
-    const checkRecs    = matchEmp(checkData.records||[], cfg['built-by-field']);
-    console.log('MATCH after — building:', buildingRecs.length, 'check:', checkRecs.length);
+    const buildingRecs = matchEmp(buildingRecs_all, cfg['start-build-field']).filter(withinRange);
+    const checkRecs    = matchEmp(checkRecs_all,    cfg['built-by-field']).filter(withinRange);
 
     // Fetch SKU names for all records
     const allRecs = [...buildingRecs, ...checkRecs];
